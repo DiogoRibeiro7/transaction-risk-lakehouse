@@ -43,6 +43,30 @@ def test_build_features_parser_accepts_table_format() -> None:
     assert args.table_format == "parquet"
 
 
+def test_ingest_ieee_cis_parser_accepts_inputs() -> None:
+    parser = build_parser()
+
+    args = parser.parse_args(
+        [
+            "ingest-ieee-cis",
+            "--transaction-input",
+            "data/raw/train_transaction.csv",
+            "--identity-input",
+            "data/raw/train_identity.csv",
+            "--bronze",
+            "data/bronze/ieee_cis",
+            "--silver",
+            "data/silver/ieee_cis",
+            "--table-format",
+            "parquet",
+        ]
+    )
+
+    assert args.transaction_input == "data/raw/train_transaction.csv"
+    assert args.identity_input == "data/raw/train_identity.csv"
+    assert args.table_format == "parquet"
+
+
 def test_train_parser_accepts_table_format() -> None:
     parser = build_parser()
 

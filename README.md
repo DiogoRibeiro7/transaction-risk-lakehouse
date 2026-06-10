@@ -43,6 +43,13 @@ You can still run the project without the full dataset by generating a small loc
 make sample-data
 ```
 
+The repository also supports **IEEE-CIS Fraud Detection** ingestion when you have the Kaggle source files locally. Expected file names:
+
+```text
+./data/raw/train_transaction.csv
+./data/raw/train_identity.csv
+```
+
 ## Architecture
 
 ```text
@@ -129,6 +136,14 @@ transaction-risk train \
   --model-output models/fraud_risk_pipeline \
   --metrics-output reports/metrics.json \
   --table-format parquet
+```
+
+```bash
+transaction-risk ingest-ieee-cis \
+  --transaction-input data/raw/train_transaction.csv \
+  --identity-input data/raw/train_identity.csv \
+  --bronze data/bronze/ieee_cis \
+  --silver data/silver/ieee_cis_transactions
 ```
 
 ## Optional Delta Lake support

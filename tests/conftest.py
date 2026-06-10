@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import os
 import sys
+import tempfile
+from pathlib import Path
 
 import pytest
 from pyspark.sql import SparkSession
@@ -27,3 +29,11 @@ def spark() -> SparkSession:
     session.sparkContext.setLogLevel("ERROR")
     yield session
     session.stop()
+
+
+@pytest.fixture
+def repo_tmp_path() -> Path:
+    """Create a writable temporary directory inside the repository workspace."""
+    root = Path(".tmp") / "pytest"
+    root.mkdir(parents=True, exist_ok=True)
+    return Path(tempfile.mkdtemp(dir=root))

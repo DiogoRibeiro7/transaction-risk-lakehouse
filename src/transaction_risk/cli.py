@@ -38,6 +38,22 @@ def ingest_paysim_command(args: argparse.Namespace) -> None:
     spark.stop()
 
 
+def ingest_ieee_cis_command(args: argparse.Namespace) -> None:
+    """CLI handler for IEEE-CIS ingestion."""
+    from transaction_risk.ingestion.ieee_cis import ingest_ieee_cis
+
+    spark = create_spark_session_from_yaml(_spark_config_path(args))
+    ingest_ieee_cis(
+        spark=spark,
+        transaction_path=args.transaction_input,
+        identity_path=args.identity_input,
+        bronze_path=args.bronze,
+        silver_path=args.silver,
+        table_format=_table_format(args),
+    )
+    spark.stop()
+
+
 def build_features_command(args: argparse.Namespace) -> None:
     """CLI handler for feature table creation."""
     from transaction_risk.features.pipeline import build_feature_table
@@ -104,6 +120,17 @@ def build_parser() -> argparse.ArgumentParser:
     ingest_parser.add_argument("--silver", required=True)
     ingest_parser.add_argument("--table-format", choices=["parquet", "delta"])
     ingest_parser.set_defaults(func=ingest_paysim_command)
+
+    ieee_ingest_parser = subparsers.add_parser(
+        "ingest-ieee-cis",
+        help="Ingest IEEE-CIS transaction and identity CSV files into bronze and silver tables",
+    )
+    ieee_ingest_parser.add_argument("--transaction-input", required=True)
+    ieee_ingest_parser.add_argument("--identity-input", required=True)
+    ieee_ingest_parser.add_argument("--bronze", required=True)
+    ieee_ingest_parser.add_argument("--silver", required=True)
+    ieee_ingest_parser.add_argument("--table-format", choices=["parquet", "delta"])
+    ieee_ingest_parser.set_defaults(func=ingest_ieee_cis_command)
 
     features_parser = subparsers.add_parser("build-features", help="Build model-ready feature table")
     features_parser.add_argument("--input", required=True)
