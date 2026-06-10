@@ -1,0 +1,40 @@
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+.venv/
+
+# Data and model artifacts
+data/raw/*
+data/bronze/*
+data/silver/*
+data/gold/*
+data/streaming/*
+models/*
+reports/figures/*
+reports/*.json
+
+# Keep folder structure
+!data/**/.gitkeep
+!models/.gitkeep
+!reports/figures/.gitkeep
+
+# Spark
+spark-warehouse/
+metastore_db/
+derby.log
+*.crc
+_SUCCESS
+
+# OS / IDE
+.DS_Store
+.vscode/
+.idea/
+
+# Local agent instructions
+AGENTS.md
+CODE_AGENT_PROMPTS.md

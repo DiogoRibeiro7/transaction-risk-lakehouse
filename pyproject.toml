@@ -1,0 +1,47 @@
+[tool.poetry]
+name = "transaction-risk-lakehouse"
+version = "0.1.0"
+description = "Production-style PySpark lakehouse for fraud detection and transaction risk modelling."
+authors = ["Diogo Ribeiro <hansolo.dj@gmail.com>"]
+readme = "README.md"
+license = "MIT"
+packages = [{ include = "transaction_risk", from = "src" }]
+
+[tool.poetry.dependencies]
+python = ">=3.10,<3.13"
+pyspark = ">=4.0,<5.0"
+pyyaml = ">=6.0,<7.0"
+
+[tool.poetry.group.dev.dependencies]
+pytest = ">=8.0,<9.0"
+pytest-cov = ">=5.0,<6.0"
+ruff = ">=0.8.0,<1.0.0"
+mypy = ">=1.13,<2.0"
+pre-commit = ">=4.0,<5.0"
+nbformat = ">=5.10,<6.0"
+
+[tool.poetry.scripts]
+transaction-risk = "transaction_risk.cli:main"
+
+[build-system]
+requires = ["poetry-core>=1.8.0"]
+build-backend = "poetry.core.masonry.api"
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP", "SIM"]
+ignore = ["E501"]
+
+[tool.mypy]
+python_version = "3.10"
+warn_unused_configs = true
+disallow_untyped_defs = true
+ignore_missing_imports = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"
