@@ -65,6 +65,24 @@ def build_features_command(args: argparse.Namespace) -> None:
     spark.stop()
 
 
+def export_feature_registry_command(args: argparse.Namespace) -> None:
+    """CLI handler for exporting the feature registry."""
+    from transaction_risk.features.metadata import (
+        feature_registry_to_json,
+        feature_registry_to_markdown,
+    )
+
+    output_path = Path(args.output)
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+
+    suffix = output_path.suffix.lower()
+    if suffix == ".json":
+        output_text = feature_registry_to_json()
+    else:
+        output_text = feature_registry_to_markdown()
+    output_path.write_text(output_text, encoding="utf-8")
+
+
 def train_command(args: argparse.Namespace) -> None:
     """CLI handler for model training."""
     from transaction_risk.models.evaluation import add_positive_probability, evaluate_scored_model
@@ -137,6 +155,13 @@ def build_parser() -> argparse.ArgumentParser:
     features_parser.add_argument("--output", required=True)
     features_parser.add_argument("--table-format", choices=["parquet", "delta"])
     features_parser.set_defaults(func=build_features_command)
+
+    registry_parser = subparsers.add_parser(
+        "export-feature-registry",
+        help="Export feature metadata as Markdown or JSON",
+    )
+    registry_parser.add_argument("--output", default="reports/feature_registry.md")
+    registry_parser.set_defaults(func=export_feature_registry_command)
 
     train_parser = subparsers.add_parser("train", help="Train and evaluate a Spark ML fraud model")
     train_parser.add_argument("--input", required=True)

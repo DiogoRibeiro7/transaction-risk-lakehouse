@@ -85,3 +85,17 @@ def test_train_parser_accepts_table_format() -> None:
     )
 
     assert args.table_format == "delta"
+
+
+def test_export_feature_registry_parser_accepts_output() -> None:
+    parser = build_parser()
+
+    args = parser.parse_args(
+        [
+            "export-feature-registry",
+            "--output",
+            "reports/feature_registry.json",
+        ]
+    )
+
+    assert args.output == "reports/feature_registry.json"

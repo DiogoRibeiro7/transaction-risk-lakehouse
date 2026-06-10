@@ -232,6 +232,14 @@ When `enable_identity_features: true` is set in `conf/features.yaml`, the featur
 
 The identity feature group is resilient to partially populated IEEE-CIS inputs and does not change the default PaySim path.
 
+## Feature registry
+
+The repository includes a lightweight feature registry for generated model features. It records ownership, source columns, defaults, and leakage notes without requiring Spark at export time.
+
+```bash
+transaction-risk export-feature-registry --output reports/feature_registry.md
+```
+
 ## Streaming demo
 
 The streaming demo reads incoming CSV files from a local folder and writes scored alerts to Parquet.
