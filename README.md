@@ -50,6 +50,23 @@ The repository also supports **IEEE-CIS Fraud Detection** ingestion when you hav
 ./data/raw/train_identity.csv
 ```
 
+To fetch those files locally with the official Kaggle CLI, first authenticate with Kaggle and accept the IEEE-CIS competition rules in your browser. Kaggle’s current CLI docs describe installation with `pip install kaggle`, interactive auth via `kaggle auth login`, and legacy token-file auth with `~/.kaggle/kaggle.json`. After that, this repo provides:
+
+```bash
+make download-ieee-cis
+```
+
+That target runs:
+
+```bash
+poetry run python scripts/download_kaggle_ieee_cis.py --output-dir data/raw
+```
+
+The helper downloads the competition archive with `kaggle competitions download -c ieee-fraud-detection`, then extracts only:
+
+- `train_transaction.csv`
+- `train_identity.csv`
+
 ## Architecture
 
 ```text
@@ -92,6 +109,12 @@ PySpark requires Java. Use Java 17 locally unless your Spark distribution requir
 
 ```bash
 make sample-data
+```
+
+If you want the real IEEE-CIS training files instead of the synthetic PaySim sample:
+
+```bash
+make download-ieee-cis
 ```
 
 ### 3. Build lakehouse tables

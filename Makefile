@@ -1,10 +1,13 @@
-.PHONY: install sample-data ingest features train test lint format clean
+.PHONY: install sample-data download-ieee-cis ingest features train test lint format clean
 
 install:
 	poetry install
 
 sample-data:
 	poetry run python scripts/generate_sample_paysim.py --output data/raw/paysim_sample.csv --rows 5000 --fraud-rate 0.015
+
+download-ieee-cis:
+	poetry run python scripts/download_kaggle_ieee_cis.py --output-dir data/raw
 
 ingest:
 	poetry run transaction-risk ingest-paysim --input data/raw/paysim_sample.csv --bronze data/bronze/paysim --silver data/silver/transactions
