@@ -6,15 +6,8 @@ import argparse
 import json
 from pathlib import Path
 
-from transaction_risk.features.pipeline import build_feature_table
-from transaction_risk.ingestion.paysim import ingest_paysim
-from transaction_risk.models.evaluation import add_positive_probability, evaluate_scored_model
-from transaction_risk.models.spark_ml import ModelTrainingConfig, train_model
-from transaction_risk.models.split import temporal_split
-from transaction_risk.models.thresholding import threshold_for_alert_rate
-from transaction_risk.spark.io import read_parquet, write_parquet
-from transaction_risk.spark.session import create_spark_session_from_yaml
-from transaction_risk.streaming.scoring_job import run_file_stream_scoring
+from transaction_risk.spark.io import read_table, write_table
+from transaction_risk.spark.session import create_spark_session_from_yaml, load_yaml_config
 
 
 def _spark_config_path(args: argparse.Namespace) -> str:
@@ -22,31 +15,49 @@ def _spark_config_path(args: argparse.Namespace) -> str:
     return str(value or "conf/spark.local.yaml")
 
 
+def _table_format(args: argparse.Namespace) -> str:
+    value = getattr(args, "table_format", None)
+    if value:
+        return str(value)
+    config = load_yaml_config(_spark_config_path(args))
+    return str(config.get("table_format", "parquet"))
+
+
 def ingest_paysim_command(args: argparse.Namespace) -> None:
     """CLI handler for PaySim ingestion."""
+    from transaction_risk.ingestion.paysim import ingest_paysim
+
     spark = create_spark_session_from_yaml(_spark_config_path(args))
     ingest_paysim(
         spark=spark,
         input_path=args.input,
         bronze_path=args.bronze,
         silver_path=args.silver,
+        table_format=_table_format(args),
     )
     spark.stop()
 
 
 def build_features_command(args: argparse.Namespace) -> None:
     """CLI handler for feature table creation."""
+    from transaction_risk.features.pipeline import build_feature_table
+
     spark = create_spark_session_from_yaml(_spark_config_path(args))
-    transactions = read_parquet(spark, args.input)
+    transactions = read_table(spark, args.input, table_format=_table_format(args))
     features = build_feature_table(transactions)
-    write_parquet(features, args.output)
+    write_table(features, args.output, table_format=_table_format(args))
     spark.stop()
 
 
 def train_command(args: argparse.Namespace) -> None:
     """CLI handler for model training."""
+    from transaction_risk.models.evaluation import add_positive_probability, evaluate_scored_model
+    from transaction_risk.models.spark_ml import ModelTrainingConfig, train_model
+    from transaction_risk.models.split import temporal_split
+    from transaction_risk.models.thresholding import threshold_for_alert_rate
+
     spark = create_spark_session_from_yaml(_spark_config_path(args))
-    features = read_parquet(spark, args.input)
+    features = read_table(spark, args.input, table_format=_table_format(args))
     train_df, _validation_df, test_df = temporal_split(features)
 
     config = ModelTrainingConfig(model_type=args.model_type)
@@ -68,6 +79,8 @@ def train_command(args: argparse.Namespace) -> None:
 
 def score_stream_command(args: argparse.Namespace) -> None:
     """CLI handler for local streaming scoring."""
+    from transaction_risk.streaming.scoring_job import run_file_stream_scoring
+
     spark = create_spark_session_from_yaml(_spark_config_path(args))
     run_file_stream_scoring(
         spark=spark,
@@ -85,15 +98,17 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--spark-config", default="conf/spark.local.yaml", help="Path to Spark YAML config")
     subparsers = parser.add_subparsers(dest="command", required=True)
 
-    ingest_parser = subparsers.add_parser("ingest-paysim", help="Ingest PaySim CSV into bronze and silver Parquet")
+    ingest_parser = subparsers.add_parser("ingest-paysim", help="Ingest PaySim CSV into bronze and silver tables")
     ingest_parser.add_argument("--input", required=True)
     ingest_parser.add_argument("--bronze", required=True)
     ingest_parser.add_argument("--silver", required=True)
+    ingest_parser.add_argument("--table-format", choices=["parquet", "delta"])
     ingest_parser.set_defaults(func=ingest_paysim_command)
 
     features_parser = subparsers.add_parser("build-features", help="Build model-ready feature table")
     features_parser.add_argument("--input", required=True)
     features_parser.add_argument("--output", required=True)
+    features_parser.add_argument("--table-format", choices=["parquet", "delta"])
     features_parser.set_defaults(func=build_features_command)
 
     train_parser = subparsers.add_parser("train", help="Train and evaluate a Spark ML fraud model")
@@ -103,6 +118,7 @@ def build_parser() -> argparse.ArgumentParser:
     train_parser.add_argument("--model-type", default="logistic_regression", choices=["logistic_regression", "random_forest", "gbt"])
     train_parser.add_argument("--top-k", type=int, default=100)
     train_parser.add_argument("--alert-rate", type=float, default=0.01)
+    train_parser.add_argument("--table-format", choices=["parquet", "delta"])
     train_parser.set_defaults(func=train_command)
 
     stream_parser = subparsers.add_parser("score-stream", help="Score incoming local CSV files with Structured Streaming")

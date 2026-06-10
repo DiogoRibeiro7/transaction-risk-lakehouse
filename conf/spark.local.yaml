@@ -1,6 +1,7 @@
 app_name: transaction-risk-lakehouse
 master: local[*]
 log_level: WARN
+table_format: parquet
 configs:
   spark.sql.shuffle.partitions: "8"
   spark.sql.session.timeZone: "UTC"

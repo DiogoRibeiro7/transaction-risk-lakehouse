@@ -8,7 +8,7 @@ from pyspark.sql import DataFrame, SparkSession
 from pyspark.sql import functions as F
 from pyspark.sql.types import DoubleType, IntegerType, StringType, StructField, StructType
 
-from transaction_risk.spark.io import read_csv, write_parquet
+from transaction_risk.spark.io import read_csv, write_table
 from transaction_risk.validation.schema import require_columns
 
 PAYSIM_SCHEMA = StructType(
@@ -88,14 +88,15 @@ def ingest_paysim(
     input_path: str | Path,
     bronze_path: str | Path,
     silver_path: str | Path,
+    table_format: str = "parquet",
 ) -> tuple[DataFrame, DataFrame]:
     """Run the PaySim ingestion pipeline.
 
     Returns the bronze and silver DataFrames for optional immediate downstream use.
     """
     bronze = read_paysim_raw(spark, input_path)
-    write_parquet(bronze, bronze_path)
+    write_table(bronze, bronze_path, table_format=table_format)
 
     silver = clean_paysim_transactions(bronze)
-    write_parquet(silver, silver_path)
+    write_table(silver, silver_path, table_format=table_format)
     return bronze, silver

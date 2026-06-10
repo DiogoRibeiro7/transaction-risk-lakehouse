@@ -112,21 +112,36 @@ make test
 transaction-risk ingest-paysim \
   --input data/raw/paysim_sample.csv \
   --bronze data/bronze/paysim \
-  --silver data/silver/transactions
+  --silver data/silver/transactions \
+  --table-format parquet
 ```
 
 ```bash
 transaction-risk build-features \
   --input data/silver/transactions \
-  --output data/gold/features
+  --output data/gold/features \
+  --table-format parquet
 ```
 
 ```bash
 transaction-risk train \
   --input data/gold/features \
   --model-output models/fraud_risk_pipeline \
-  --metrics-output reports/metrics.json
+  --metrics-output reports/metrics.json \
+  --table-format parquet
 ```
+
+## Optional Delta Lake support
+
+The base project uses Parquet by default and does not require Delta Lake dependencies.
+
+If your Spark environment is configured with Delta Lake support, the ingestion, feature, and training commands also accept:
+
+```bash
+--table-format delta
+```
+
+If Delta is requested in an environment without Delta support, the CLI raises a clear error and the default Parquet path remains unchanged.
 
 ## Modelling strategy
 
