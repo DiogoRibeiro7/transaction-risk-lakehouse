@@ -87,6 +87,35 @@ def test_train_parser_accepts_table_format() -> None:
     assert args.table_format == "delta"
 
 
+def test_train_parser_accepts_expected_value_threshold_options() -> None:
+    parser = build_parser()
+
+    args = parser.parse_args(
+        [
+            "train",
+            "--input",
+            "data/gold/features",
+            "--model-output",
+            "models/fraud_risk_pipeline",
+            "--metrics-output",
+            "reports/metrics.json",
+            "--threshold-strategy",
+            "expected-value",
+            "--fraud-loss-rate",
+            "2.0",
+            "--false-positive-review-cost",
+            "3.0",
+            "--true-positive-recovery-rate",
+            "0.75",
+        ]
+    )
+
+    assert args.threshold_strategy == "expected-value"
+    assert args.fraud_loss_rate == 2.0
+    assert args.false_positive_review_cost == 3.0
+    assert args.true_positive_recovery_rate == 0.75
+
+
 def test_export_feature_registry_parser_accepts_output() -> None:
     parser = build_parser()
 

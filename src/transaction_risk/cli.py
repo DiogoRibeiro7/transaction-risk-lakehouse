@@ -92,15 +92,36 @@ def train_command(args: argparse.Namespace) -> None:
 
     spark = create_spark_session_from_yaml(_spark_config_path(args))
     features = read_table(spark, args.input, table_format=_table_format(args))
-    train_df, _validation_df, test_df = temporal_split(features)
+    train_df, validation_df, test_df = temporal_split(features)
 
     config = ModelTrainingConfig(model_type=args.model_type)
     model = train_model(train_df, config=config)
-    scored = add_positive_probability(model.transform(test_df))
-    threshold = threshold_for_alert_rate(scored, alert_rate=args.alert_rate)
-    metrics = evaluate_scored_model(scored, top_k=args.top_k, threshold=threshold)
+    scored_validation = add_positive_probability(model.transform(validation_df))
+    scored_test = add_positive_probability(model.transform(test_df))
+
+    threshold_metrics: dict[str, float | int] = {}
+    if args.threshold_strategy == "expected-value":
+        from transaction_risk.models.thresholding import optimize_threshold_by_expected_value
+
+        candidate_thresholds = [threshold / 100.0 for threshold in range(1, 100)]
+        threshold, threshold_metrics = optimize_threshold_by_expected_value(
+            scored_validation,
+            candidate_thresholds=candidate_thresholds,
+            amount_column=args.amount_column,
+            fraud_loss_rate=args.fraud_loss_rate,
+            false_positive_review_cost=args.false_positive_review_cost,
+            true_positive_recovery_rate=args.true_positive_recovery_rate,
+        )
+    else:
+        threshold = threshold_for_alert_rate(scored_validation, alert_rate=args.alert_rate)
+
+    metrics = evaluate_scored_model(scored_test, top_k=args.top_k, threshold=threshold)
     metrics["selected_threshold"] = threshold
     metrics["model_type"] = args.model_type
+    metrics["threshold_strategy"] = args.threshold_strategy
+    if threshold_metrics:
+        for key, value in threshold_metrics.items():
+            metrics[f"validation_{key}"] = value
 
     Path(args.model_output).parent.mkdir(parents=True, exist_ok=True)
     model.write().overwrite().save(args.model_output)
@@ -171,6 +192,11 @@ def build_parser() -> argparse.ArgumentParser:
     train_parser.add_argument("--top-k", type=int, default=100)
     train_parser.add_argument("--alert-rate", type=float, default=0.01)
     train_parser.add_argument("--table-format", choices=["parquet", "delta"])
+    train_parser.add_argument("--threshold-strategy", default="alert-rate", choices=["alert-rate", "expected-value"])
+    train_parser.add_argument("--amount-column", default="amount")
+    train_parser.add_argument("--fraud-loss-rate", type=float, default=1.0)
+    train_parser.add_argument("--false-positive-review-cost", type=float, default=1.0)
+    train_parser.add_argument("--true-positive-recovery-rate", type=float, default=1.0)
     train_parser.set_defaults(func=train_command)
 
     stream_parser = subparsers.add_parser("score-stream", help="Score incoming local CSV files with Structured Streaming")

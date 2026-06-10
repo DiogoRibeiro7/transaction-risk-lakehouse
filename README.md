@@ -181,6 +181,19 @@ The evaluation module reports:
 - confusion matrix at threshold
 - fraud value captured
 
+Operational threshold selection supports both capacity-based and business-value-based strategies. The default remains alert-rate targeting, and training can also optimize for expected value:
+
+```bash
+transaction-risk train \
+  --input data/gold/features \
+  --model-output models/fraud_risk_pipeline \
+  --metrics-output reports/metrics.json \
+  --threshold-strategy expected-value \
+  --fraud-loss-rate 1.0 \
+  --false-positive-review-cost 5.0 \
+  --true-positive-recovery-rate 0.6
+```
+
 ## Feature groups
 
 ### Transaction features
