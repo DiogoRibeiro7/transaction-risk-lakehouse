@@ -3,6 +3,7 @@ entity_columns:
   origin: nameOrig
   destination: nameDest
 label_column: isFraud
+enable_identity_features: false
 rolling_windows:
   short_steps: 6
   medium_steps: 24

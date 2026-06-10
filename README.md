@@ -219,6 +219,19 @@ The graph module computes Spark-native graph features using DataFrame aggregatio
 
 This avoids forcing GraphFrames for the base project while still showing graph-aware fraud engineering.
 
+### IEEE-CIS identity features
+
+When `enable_identity_features: true` is set in `conf/features.yaml`, the feature pipeline can also add optional IEEE-CIS-specific features such as:
+
+- card-field presence indicators
+- normalized purchaser and recipient email domains
+- email-domain match flags
+- normalized device-type fields
+- identity missingness counts
+- product-code transaction amount aggregates
+
+The identity feature group is resilient to partially populated IEEE-CIS inputs and does not change the default PaySim path.
+
 ## Streaming demo
 
 The streaming demo reads incoming CSV files from a local folder and writes scored alerts to Parquet.
