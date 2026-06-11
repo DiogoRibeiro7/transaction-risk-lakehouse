@@ -16,6 +16,18 @@ The model uses transaction-level, temporal, entity-level, and graph-derived feat
 
 Evaluation should use temporal splits. Main metrics are PR-AUC, ROC-AUC, precision@K, recall@K, and fraud value captured.
 
+## Calibration
+
+Fraud scores are primarily used for ranking, but calibrated probabilities support reporting, thresholding, and risk interpretation. Training can optionally calibrate probabilities on the validation window with `--calibrate-probabilities`, using Platt scaling (default) or isotonic regression (`--calibration-method isotonic`).
+
+When enabled, the metrics report includes:
+
+- Brier score before and after calibration
+- expected calibration error approximation by probability bins
+- a calibration table comparing mean predicted probability with observed fraud rate per bin
+
+Calibration is fitted on validation predictions and evaluated on the test window to preserve temporal ordering.
+
 ## Limitations
 
 - PaySim is synthetic and may not represent all real fraud behaviours.
@@ -33,3 +45,5 @@ Recommended monitoring includes:
 - feature drift
 - score distribution drift
 - delayed label performance
+
+The `transaction-risk monitor` command generates JSON and Markdown monitoring reports covering feature PSI, score distribution drift, label-rate drift, and bucketed alert volume, precision, recall, and fraud value capture. Reports clearly distinguish labeled and unlabeled monitoring windows.

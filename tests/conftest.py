@@ -10,10 +10,28 @@ from pathlib import Path
 import pytest
 from pyspark.sql import SparkSession
 
+from transaction_risk.spark.session import prepare_spark_environment
+
+
+def _load_dotenv(path: Path = Path(".env")) -> None:
+    """Load simple KEY=VALUE pairs from a local .env file without overriding the environment."""
+    if not path.exists():
+        return
+    for line in path.read_text(encoding="utf-8").splitlines():
+        stripped = line.strip()
+        if not stripped or stripped.startswith("#") or "=" not in stripped:
+            continue
+        key, _, value = stripped.partition("=")
+        os.environ.setdefault(key.strip(), value.strip())
+
+
+_load_dotenv()
+
 
 @pytest.fixture(scope="session")
 def spark() -> SparkSession:
     """Create a local Spark session for tests."""
+    prepare_spark_environment()
     python_executable = sys.executable
     os.environ.setdefault("PYSPARK_PYTHON", python_executable)
     os.environ.setdefault("PYSPARK_DRIVER_PYTHON", python_executable)

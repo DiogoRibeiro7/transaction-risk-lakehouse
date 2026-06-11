@@ -2,12 +2,52 @@
 
 from __future__ import annotations
 
+import logging
+import os
 from collections.abc import Mapping
 from pathlib import Path
 from typing import Any
 
 import yaml
 from pyspark.sql import SparkSession
+
+logger = logging.getLogger(__name__)
+
+
+def apply_spark_java_home() -> None:
+    """Point Spark at a dedicated JDK when `SPARK_JAVA_HOME` is set.
+
+    Spark 4 requires Java 17 or 21. Machines whose default `JAVA_HOME` is a
+    newer JDK (Java 24 removed the Security Manager that Hadoop still needs)
+    can set `SPARK_JAVA_HOME` to a compatible JDK without changing the
+    machine-wide Java installation.
+    """
+    spark_java_home = os.environ.get("SPARK_JAVA_HOME")
+    if spark_java_home and os.environ.get("JAVA_HOME") != spark_java_home:
+        logger.info("Using SPARK_JAVA_HOME for the Spark JVM: %s", spark_java_home)
+        os.environ["JAVA_HOME"] = spark_java_home
+
+
+def apply_hadoop_home() -> None:
+    """Expose `HADOOP_HOME/bin` on PATH so Hadoop native binaries are found.
+
+    On Windows, Hadoop filesystem operations (including Spark ML model saves)
+    require `winutils.exe` and `hadoop.dll`. Set `HADOOP_HOME` to a folder with
+    a `bin` directory containing them.
+    """
+    hadoop_home = os.environ.get("HADOOP_HOME")
+    if not hadoop_home:
+        return
+    hadoop_bin = str(Path(hadoop_home) / "bin")
+    current_path = os.environ.get("PATH", "")
+    if hadoop_bin not in current_path.split(os.pathsep):
+        os.environ["PATH"] = hadoop_bin + os.pathsep + current_path
+
+
+def prepare_spark_environment() -> None:
+    """Apply all local environment overrides needed before launching the JVM."""
+    apply_spark_java_home()
+    apply_hadoop_home()
 
 
 def load_yaml_config(path: str | Path) -> dict[str, Any]:
@@ -61,6 +101,7 @@ def create_spark_session(
     SparkSession
         Configured Spark session.
     """
+    prepare_spark_environment()
     builder = SparkSession.builder.appName(app_name)
     if master is not None:
         builder = builder.master(master)

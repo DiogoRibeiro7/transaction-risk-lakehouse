@@ -1,4 +1,4 @@
-.PHONY: install sample-data download-ieee-cis ingest features train test lint format clean
+.PHONY: install sample-data download-ieee-cis ingest features train score-batch benchmark demo-artifacts test lint format clean
 
 install:
 	poetry install
@@ -18,6 +18,15 @@ features:
 train:
 	poetry run transaction-risk train --input data/gold/features --model-output models/fraud_risk_pipeline --metrics-output reports/metrics.json
 
+score-batch:
+	poetry run transaction-risk score-batch --input data/gold/features --model models/fraud_risk_pipeline --output data/scored/batch --threshold 0.5
+
+benchmark:
+	poetry run transaction-risk benchmark-models --input data/gold/features --output reports/benchmark
+
+demo-artifacts:
+	poetry run python scripts/generate_demo_artifacts.py
+
 test:
 	poetry run pytest
 
@@ -30,4 +39,4 @@ format:
 	poetry run ruff check --fix src tests scripts
 
 clean:
-	rm -rf data/bronze data/silver data/gold data/streaming/checkpoints models reports/metrics.json
+	rm -rf data/bronze data/silver data/gold data/scored data/streaming/checkpoints models reports/metrics.json
