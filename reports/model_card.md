@@ -46,4 +46,4 @@ Recommended monitoring includes:
 - score distribution drift
 - delayed label performance
 
-The `transaction-risk monitor` command generates JSON and Markdown monitoring reports covering feature PSI, score distribution drift, label-rate drift, and bucketed alert volume, precision, recall, and fraud value capture. Reports clearly distinguish labeled and unlabeled monitoring windows.
+The `transaction-risk monitor` command generates JSON, Markdown, and self-contained HTML monitoring reports covering feature PSI, score distribution drift, label-rate drift, and bucketed alert volume, precision, recall, and fraud value capture. The HTML report is an Evidently-style dashboard with PSI severity coloring and requires no external dependencies. Reports clearly distinguish labeled and unlabeled monitoring windows.

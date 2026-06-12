@@ -256,6 +256,7 @@ def monitor_command(args: argparse.Namespace) -> None:
     """CLI handler for building monitoring reports from scored tables."""
     from transaction_risk.monitoring.report import (
         build_monitoring_report,
+        write_monitoring_report_html,
         write_monitoring_report_json,
         write_monitoring_report_markdown,
     )
@@ -279,6 +280,8 @@ def monitor_command(args: argparse.Namespace) -> None:
         write_monitoring_report_json(report, args.output_json)
     if args.output_md:
         write_monitoring_report_markdown(report, args.output_md)
+    if args.output_html:
+        write_monitoring_report_html(report, args.output_html)
     spark.stop()
 
 
@@ -397,6 +400,7 @@ def build_parser() -> argparse.ArgumentParser:
     monitor_parser.add_argument("--current", required=True)
     monitor_parser.add_argument("--output-json")
     monitor_parser.add_argument("--output-md")
+    monitor_parser.add_argument("--output-html")
     monitor_parser.add_argument("--feature-columns", help="Comma-separated numeric columns for PSI")
     monitor_parser.add_argument("--time-bucket-size", type=int, default=24)
     monitor_parser.add_argument("--table-format", choices=["parquet", "delta"])

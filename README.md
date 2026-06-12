@@ -381,7 +381,7 @@ Add `--strict-quality` to fail ingestion when any expectation does not pass. A `
 
 ## Monitoring reports
 
-The monitoring command compares a reference scored table with a current scored table and writes JSON and Markdown reports. It always reports feature drift, score distribution drift, and alert volume by time bucket; when labels are present it also reports label-rate drift, precision and recall by bucket, and fraud value captured by bucket. Unlabeled tables produce a clearly marked unlabeled report instead of failing.
+The monitoring command compares a reference scored table with a current scored table and writes JSON, Markdown, and HTML reports. It always reports feature drift, score distribution drift, and alert volume by time bucket; when labels are present it also reports label-rate drift, precision and recall by bucket, and fraud value captured by bucket. Unlabeled tables produce a clearly marked unlabeled report instead of failing.
 
 ```bash
 transaction-risk monitor \
@@ -389,8 +389,11 @@ transaction-risk monitor \
   --current data/scored/current \
   --output-json reports/monitoring/report.json \
   --output-md reports/monitoring/report.md \
+  --output-html reports/monitoring/report.html \
   --feature-columns amount,fraud_probability
 ```
+
+The optional `--output-html` flag writes a self-contained, Evidently-style HTML dashboard (drift status cards with PSI severity coloring and per-bucket performance tables). It has no external assets or dependencies — open it directly in a browser or attach it to a review — and the base project does not depend on the heavy `evidently` package.
 
 ## Demo figures
 
