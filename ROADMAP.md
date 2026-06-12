@@ -17,8 +17,8 @@
 - [x] Write bronze Parquet table
 - [x] Clean and deduplicate silver transactions
 - [x] Add data quality checks
-- [ ] Add optional Delta Lake support
-- [ ] Add IEEE-CIS ingestion module
+- [x] Add optional Delta Lake support
+- [x] Add IEEE-CIS ingestion module
 
 ## Phase 3 — Feature engineering
 
@@ -27,8 +27,8 @@
 - [x] Entity-level aggregation features
 - [x] Temporal window features
 - [x] Spark-native graph-derived features
-- [ ] Add device / identity feature group for IEEE-CIS
-- [ ] Add feature store metadata
+- [x] Add device / identity feature group for IEEE-CIS
+- [x] Add feature store metadata
 
 ## Phase 4 — Modelling
 
@@ -52,7 +52,7 @@
 - [x] Batch scoring job for materialized tables
 - [x] Local model registry with versioned metadata
 - [x] Drift and performance monitoring reports (JSON and Markdown)
-- [ ] Add Evidently-style report export
+- [x] Add Evidently-style HTML report export (dependency-free)
 - [x] Add lightweight expectation checks (Great Expectations-style)
 - [x] Add Dagster example pipeline (optional dependency group)
 

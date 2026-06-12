@@ -12,6 +12,9 @@ from transaction_risk.monitoring.performance import (
 )
 from transaction_risk.monitoring.report import (
     build_monitoring_report,
+    build_monitoring_report_html,
+    psi_status,
+    write_monitoring_report_html,
     write_monitoring_report_json,
     write_monitoring_report_markdown,
 )
@@ -143,3 +146,89 @@ def test_monitoring_report_markdown_marks_unlabeled(spark, tmp_path: Path) -> No
     markdown = md_path.read_text(encoding="utf-8")
     assert "**unlabeled**" in markdown
     assert "Labels are not available" in markdown
+
+
+# --- HTML export (no Spark required) ---
+
+
+def test_psi_status_thresholds() -> None:
+    assert psi_status(0.05) == ("stable", "ok")
+    assert psi_status(0.10) == ("moderate drift", "warn")
+    assert psi_status(0.24) == ("moderate drift", "warn")
+    assert psi_status(0.25) == ("significant drift", "alert")
+    assert psi_status(0.9) == ("significant drift", "alert")
+
+
+def test_build_html_renders_cards_tables_and_status() -> None:
+    report = {
+        "labeled": True,
+        "reference_rows": 4,
+        "current_rows": 5,
+        "feature_drift_psi": {"amount": 0.30},
+        "score_distribution_psi": 0.05,
+        "label_rate_drift": {
+            "reference_label_rate": 0.25,
+            "current_label_rate": 0.60,
+            "absolute_change": 0.35,
+            "relative_change": 1.4,
+        },
+        "alert_volume_by_bucket": [
+            {"time_bucket": 0, "transactions": 3, "alerts": 2, "alert_rate": 0.6667}
+        ],
+    }
+
+    html_text = build_monitoring_report_html(report)
+
+    assert html_text.startswith("<!DOCTYPE html>")
+    assert "Monitoring report" in html_text
+    assert "labeled" in html_text
+    # PSI 0.30 is significant -> alert card; score PSI 0.05 -> ok card
+    assert "card-alert" in html_text
+    assert "card-ok" in html_text
+    assert "significant drift" in html_text
+    assert "Alert volume by time bucket" in html_text
+    assert "<table" in html_text
+
+
+def test_build_html_unlabeled_notes_missing_labels() -> None:
+    report = {
+        "labeled": False,
+        "reference_rows": 4,
+        "current_rows": 5,
+        "feature_drift_psi": {"amount": 0.02},
+        "alert_volume_by_bucket": [
+            {"time_bucket": 0, "transactions": 3, "alerts": 2, "alert_rate": 0.6667}
+        ],
+    }
+
+    html_text = build_monitoring_report_html(report)
+
+    assert "unlabeled" in html_text
+    assert "Labels are not available" in html_text
+    assert "Label rate change" not in html_text
+
+
+def test_build_html_escapes_dynamic_text() -> None:
+    report = {
+        "labeled": False,
+        "reference_rows": 1,
+        "current_rows": 1,
+        "feature_drift_psi": {"amount<script>": 0.4},
+    }
+
+    html_text = build_monitoring_report_html(report)
+
+    assert "<script>" not in html_text
+    assert "&lt;script&gt;" in html_text
+
+
+def test_write_html_creates_file(spark, tmp_path: Path) -> None:
+    report = build_monitoring_report(_reference_frame(spark), _current_frame(spark))
+    html_path = tmp_path / "monitoring.html"
+
+    write_monitoring_report_html(report, html_path)
+
+    assert html_path.exists()
+    content = html_path.read_text(encoding="utf-8")
+    assert content.startswith("<!DOCTYPE html>")
+    assert "</html>" in content

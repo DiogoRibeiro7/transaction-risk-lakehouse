@@ -247,6 +247,8 @@ def test_monitor_parser_accepts_options() -> None:
             "reports/monitoring/report.json",
             "--output-md",
             "reports/monitoring/report.md",
+            "--output-html",
+            "reports/monitoring/report.html",
             "--feature-columns",
             "amount,fraud_probability",
             "--time-bucket-size",
@@ -258,6 +260,7 @@ def test_monitor_parser_accepts_options() -> None:
     assert args.current == "data/scored/current"
     assert args.output_json == "reports/monitoring/report.json"
     assert args.output_md == "reports/monitoring/report.md"
+    assert args.output_html == "reports/monitoring/report.html"
     assert args.feature_columns == "amount,fraud_probability"
     assert args.time_bucket_size == 12
 
