@@ -36,7 +36,9 @@ def run_file_stream_scoring(
     )
 
     def score_micro_batch(batch_df: DataFrame, batch_id: int) -> None:
-        if batch_df.rdd.isEmpty():
+        # DataFrame.isEmpty() stays on the JVM; batch_df.rdd.isEmpty() would force a
+        # Python worker per micro-batch, which is slower and fragile on some platforms.
+        if batch_df.isEmpty():
             return
         features = build_feature_table(batch_df)
         scored = add_positive_probability(model.transform(features))
