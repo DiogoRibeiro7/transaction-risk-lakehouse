@@ -125,6 +125,7 @@ def build_model_pipeline(
     )
 
     model_type = cfg.model_type.lower()
+    estimator: LogisticRegression | RandomForestClassifier | GBTClassifier
     if model_type == "logistic_regression":
         estimator = LogisticRegression(
             labelCol=cfg.label_column,

@@ -38,7 +38,7 @@ def add_graph_features(
         )
         result = result.join(destination_risk, on=destination_column, how="left")
 
-    fill_values = {
+    fill_values: dict[str, bool | float | int | str] = {
         "origin_out_degree": 0,
         "destination_in_degree": 0,
         "edge_frequency": 0,
