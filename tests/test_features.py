@@ -37,7 +37,7 @@ def test_build_feature_table_adds_expected_columns(spark) -> None:
         "edge_frequency",
     }
     assert expected.issubset(set(result.columns))
-    assert result.count() == 3
+    assert len(result.select("transaction_id").collect()) == 3
 
 
 def test_build_feature_table_uses_only_historical_values(spark) -> None:

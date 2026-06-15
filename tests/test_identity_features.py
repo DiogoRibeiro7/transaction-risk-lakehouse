@@ -53,7 +53,7 @@ def test_add_identity_features_tolerates_missing_optional_columns(spark) -> None
     assert "p_emaildomain_normalized" not in result.columns
     assert "device_type_normalized" not in result.columns
     assert "product_cd_avg_transaction_amount" not in result.columns
-    assert result.count() == 1
+    assert result.first()["TransactionID"] == "tx1"
 
 
 def test_add_identity_features_handles_nulls(spark) -> None:

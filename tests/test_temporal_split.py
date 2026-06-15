@@ -16,7 +16,7 @@ def test_temporal_split_preserves_time_order(spark) -> None:
 
     assert max_train < min_validation
     assert max_validation < min_test
-    assert train.count() + validation.count() + test.count() == 100
+    assert len(train.collect()) + len(validation.collect()) + len(test.collect()) == 100
 
 
 def test_temporal_split_handles_sparse_time_buckets_without_empty_windows(spark) -> None:
@@ -33,9 +33,9 @@ def test_temporal_split_handles_sparse_time_buckets_without_empty_windows(spark)
 
     train, validation, test = temporal_split(df, time_column="step", train_fraction=0.5, validation_fraction=0.25)
 
-    assert train.count() == 2
-    assert validation.count() == 2
-    assert test.count() == 1
+    assert len(train.collect()) == 2
+    assert len(validation.collect()) == 2
+    assert len(test.collect()) == 1
 
 
 def test_temporal_split_rejects_insufficient_distinct_times(spark) -> None:

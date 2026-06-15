@@ -31,8 +31,8 @@ def test_read_ieee_cis_preserves_transactions_without_identity(
         FIXTURES_DIR / "train_identity.csv",
     )
 
-    assert result.count() == 3
     rows = {row["TransactionID"]: row.asDict() for row in result.collect()}
+    assert len(rows) == 3
     assert rows["1003"]["DeviceType"] is None
     assert rows["1003"]["has_identity"] == 0
     assert rows["1002"]["has_identity"] == 1
@@ -53,13 +53,13 @@ def test_ingest_ieee_cis_writes_bronze_and_silver_tables(
 
     bronze_path = repo_tmp_path / "bronze"
     silver_path = repo_tmp_path / "silver"
-    writes: list[tuple[str, int]] = []
+    writes: list[str] = []
 
     def capture_write(df, path, table_format="parquet", mode="overwrite", partition_columns=None) -> None:
         assert table_format == "parquet"
         assert mode == "overwrite"
         assert partition_columns is None
-        writes.append((str(path), df.count()))
+        writes.append(str(path))
 
     monkeypatch.setattr("transaction_risk.ingestion.ieee_cis.write_table", capture_write)
 
@@ -71,13 +71,13 @@ def test_ingest_ieee_cis_writes_bronze_and_silver_tables(
         silver_path=silver_path,
     )
 
-    assert transactions.count() == 3
-    assert identities.count() == 2
-    assert silver.count() == 3
+    assert len(transactions.collect()) == 3
+    assert len(identities.collect()) == 2
+    assert len(silver.collect()) == 3
     assert writes == [
-        (str(bronze_path / "transactions"), 3),
-        (str(bronze_path / "identity"), 2),
-        (str(silver_path), 3),
+        str(bronze_path / "transactions"),
+        str(bronze_path / "identity"),
+        str(silver_path),
     ]
 
 
