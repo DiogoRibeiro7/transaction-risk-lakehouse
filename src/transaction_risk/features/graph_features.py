@@ -6,9 +6,10 @@ aggregations, which keeps the base project simple and reproducible.
 
 from __future__ import annotations
 
-from pyspark.sql import DataFrame
+from pyspark.sql import DataFrame, Window
 from pyspark.sql import functions as F
 
+from transaction_risk.features.history import ordered_window
 from transaction_risk.validation.schema import require_columns
 
 
@@ -17,26 +18,66 @@ def add_graph_features(
     source_column: str = "nameOrig",
     destination_column: str = "nameDest",
     label_column: str = "isFraud",
+    time_column: str = "step",
 ) -> DataFrame:
-    """Add graph-derived transaction network features."""
-    require_columns(df, [source_column, destination_column])
+    """Add causal graph-derived transaction network features."""
+    require_columns(df, [source_column, destination_column, time_column])
 
-    out_degree = df.groupBy(source_column).agg(F.countDistinct(destination_column).alias("origin_out_degree"))
-    in_degree = df.groupBy(destination_column).agg(F.countDistinct(source_column).alias("destination_in_degree"))
-    pair_frequency = df.groupBy(source_column, destination_column).agg(F.count(F.lit(1)).alias("edge_frequency"))
+    source_history = ordered_window(df, [source_column], time_column).rowsBetween(
+        Window.unboundedPreceding,
+        -1,
+    )
+    destination_history = ordered_window(df, [destination_column], time_column).rowsBetween(
+        Window.unboundedPreceding,
+        -1,
+    )
+    edge_history = ordered_window(df, [source_column, destination_column], time_column).rowsBetween(
+        Window.unboundedPreceding,
+        -1,
+    )
+
+    first_out_edge = F.row_number().over(
+        ordered_window(df, [source_column, destination_column], time_column)
+    )
+    first_in_edge = F.row_number().over(
+        ordered_window(df, [destination_column, source_column], time_column)
+    )
 
     result = (
-        df.join(out_degree, on=source_column, how="left")
-        .join(in_degree, on=destination_column, how="left")
-        .join(pair_frequency, on=[source_column, destination_column], how="left")
+        df.withColumn(
+            "_origin_new_destination",
+            F.when(first_out_edge == 1, F.lit(1)).otherwise(F.lit(0)),
+        )
+        .withColumn(
+            "_destination_new_origin",
+            F.when(first_in_edge == 1, F.lit(1)).otherwise(F.lit(0)),
+        )
+        .withColumn("origin_out_degree", F.sum(F.col("_origin_new_destination")).over(source_history))
+        .withColumn("destination_in_degree", F.sum(F.col("_destination_new_origin")).over(destination_history))
+        .withColumn("edge_frequency", F.count(F.lit(1)).over(edge_history))
     )
 
     if label_column in df.columns:
-        destination_risk = df.groupBy(destination_column).agg(
-            F.avg(F.col(label_column).cast("double")).alias("destination_historical_fraud_rate"),
-            F.sum(F.col(label_column).cast("int")).alias("destination_historical_fraud_count"),
+        result = (
+            result.withColumn(
+                "destination_historical_fraud_count",
+                F.sum(F.col(label_column).cast("int")).over(destination_history),
+            )
+            .withColumn(
+                "_destination_history_count",
+                F.count(F.lit(1)).over(destination_history),
+            )
+            .withColumn(
+                "destination_historical_fraud_rate",
+                F.when(
+                    F.col("_destination_history_count") > 0,
+                    F.col("destination_historical_fraud_count") / F.col("_destination_history_count"),
+                ).otherwise(F.lit(0.0)),
+            )
+            .drop("_destination_history_count")
         )
-        result = result.join(destination_risk, on=destination_column, how="left")
+
+    result = result.drop("_origin_new_destination", "_destination_new_origin")
 
     fill_values: dict[str, bool | float | int | str] = {
         "origin_out_degree": 0,

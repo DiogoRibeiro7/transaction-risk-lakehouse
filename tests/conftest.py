@@ -10,6 +10,8 @@ from pathlib import Path
 import pytest
 from pyspark.sql import SparkSession
 
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
+
 from transaction_risk.spark.session import prepare_spark_environment
 
 

@@ -3,6 +3,9 @@ from __future__ import annotations
 import pytest
 
 from transaction_risk.features.pipeline import build_feature_table
+from transaction_risk.models.artifact import save_scoring_artifact
+from transaction_risk.models.calibration import fit_platt_calibrator
+from transaction_risk.models.evaluation import add_positive_probability
 from transaction_risk.models.spark_ml import train_model
 from transaction_risk.scoring.batch import (
     score_feature_table,
@@ -55,6 +58,18 @@ def trained_model_path(spark, tmp_path_factory):
     model = train_model(features)
     model_path = tmp_path_factory.mktemp("models") / "fraud_risk_pipeline"
     model.write().overwrite().save(str(model_path))
+    return str(model_path)
+
+
+@pytest.fixture(scope="module")
+def calibrated_model_path(spark, tmp_path_factory):
+    transactions = _silver_transactions(spark)
+    features = build_feature_table(transactions)
+    model = train_model(features)
+    scored = add_positive_probability(model.transform(features))
+    calibrator = fit_platt_calibrator(scored)
+    model_path = tmp_path_factory.mktemp("models") / "fraud_risk_calibrated_artifact"
+    save_scoring_artifact(model, model_path, calibrator=calibrator)
     return str(model_path)
 
 
@@ -127,3 +142,27 @@ def test_score_transaction_table_builds_features_first(spark, trained_model_path
     assert scored.count() == transactions.count()
     assert {"fraud_probability", "is_alert", "selected_threshold"} <= set(scored.columns)
     assert "nameOrig" in scored.columns
+
+
+def test_score_feature_table_supports_calibrated_artifacts(
+    spark,
+    calibrated_model_path,
+    repo_tmp_path,
+) -> None:
+    transactions = _silver_transactions(spark)
+    features = build_feature_table(transactions)
+    input_path = repo_tmp_path / "gold_features_calibrated"
+    output_path = repo_tmp_path / "scored_features_calibrated"
+    write_table(features, input_path)
+
+    score_feature_table(
+        spark=spark,
+        input_path=input_path,
+        model_path=calibrated_model_path,
+        output_path=output_path,
+        threshold=0.5,
+    )
+
+    scored = spark.read.parquet(str(output_path))
+    assert scored.count() == features.count()
+    assert {"fraud_probability", "is_alert", "selected_threshold"} <= set(scored.columns)

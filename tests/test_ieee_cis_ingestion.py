@@ -99,3 +99,33 @@ def test_ingest_ieee_cis_rejects_duplicate_transaction_ids(
             bronze_path=repo_tmp_path / "bronze",
             silver_path=repo_tmp_path / "silver",
         )
+
+
+def test_ingest_ieee_cis_rejects_duplicate_identity_transaction_ids(
+    spark,
+    repo_tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    transaction_df = _csv_fixture_to_df(spark, FIXTURES_DIR / "train_transaction.csv")
+    duplicate_identity_df = spark.createDataFrame(
+        [
+            {"TransactionID": "1001", "DeviceType": "desktop"},
+            {"TransactionID": "1001", "DeviceType": "mobile"},
+        ]
+    )
+
+    def fake_read_csv(spark_session, path, schema=None, header=True):
+        if Path(path).name == "train_transaction.csv":
+            return transaction_df
+        return duplicate_identity_df
+
+    monkeypatch.setattr("transaction_risk.ingestion.ieee_cis.read_csv", fake_read_csv)
+
+    with pytest.raises(ValueError, match="identities contain duplicate TransactionID"):
+        ingest_ieee_cis(
+            spark=spark,
+            transaction_path=FIXTURES_DIR / "train_transaction.csv",
+            identity_path=FIXTURES_DIR / "train_identity.csv",
+            bronze_path=repo_tmp_path / "bronze",
+            silver_path=repo_tmp_path / "silver",
+        )

@@ -35,7 +35,6 @@ def test_add_identity_features_with_all_expected_columns(spark) -> None:
     assert "device_type_normalized" in result.columns
     assert "device_info_normalized" in result.columns
     assert "identity_missing_value_count" in result.columns
-    assert "product_cd_avg_transaction_amount" in result.columns
     assert rows["tx1"]["email_domains_match"] == 1
     assert rows["tx2"]["email_domains_match"] == 0
     assert rows["tx1"]["has_card1"] == 1
@@ -53,6 +52,7 @@ def test_add_identity_features_tolerates_missing_optional_columns(spark) -> None
     assert "has_card1" in result.columns
     assert "p_emaildomain_normalized" not in result.columns
     assert "device_type_normalized" not in result.columns
+    assert "product_cd_avg_transaction_amount" not in result.columns
     assert result.count() == 1
 
 
@@ -106,3 +106,23 @@ def test_build_feature_table_keeps_identity_features_disabled_by_default(spark) 
     result = build_feature_table(df)
 
     assert "p_emaildomain_normalized" not in result.columns
+
+
+def test_add_identity_features_uses_historical_product_stats_when_time_exists(spark) -> None:
+    df = spark.createDataFrame(
+        [
+            ("tx1", 1.0, "W", 1),
+            ("tx2", 3.0, "W", 2),
+            ("tx3", 5.0, "W", 3),
+        ],
+        ["TransactionID", "TransactionAmt", "ProductCD", "TransactionDT"],
+    )
+
+    result = add_identity_features(df).orderBy("TransactionDT").collect()
+
+    assert result[0]["product_cd_transaction_count"] == 0
+    assert result[0]["product_cd_avg_transaction_amount"] == 0.0
+    assert result[1]["product_cd_transaction_count"] == 1
+    assert result[1]["product_cd_avg_transaction_amount"] == 1.0
+    assert result[2]["product_cd_transaction_count"] == 2
+    assert result[2]["product_cd_max_transaction_amount"] == 3.0

@@ -68,6 +68,19 @@ def _validate_ieee_transactions(df: DataFrame) -> None:
         require_binary_label(df, "isFraud")
 
 
+def _validate_ieee_identities(df: DataFrame) -> None:
+    """Run ingestion-time quality checks for IEEE-CIS identities."""
+    require_columns(df, IDENTITY_REQUIRED_COLUMNS)
+
+    missing_transaction_id_count = df.filter(F.col("TransactionID").isNull()).count()
+    if missing_transaction_id_count > 0:
+        raise ValueError("IEEE-CIS identities contain missing TransactionID values.")
+
+    duplicate_transaction_ids = duplicate_count(df, ["TransactionID"])
+    if duplicate_transaction_ids > 0:
+        raise ValueError("IEEE-CIS identities contain duplicate TransactionID values.")
+
+
 def read_ieee_cis(
     spark: SparkSession,
     transaction_path: str | Path,
@@ -81,6 +94,7 @@ def read_ieee_cis(
         return transactions.withColumn("event_time", F.to_timestamp(F.from_unixtime("TransactionDT")))
 
     identities = _read_identity_csv(spark, identity_path)
+    _validate_ieee_identities(identities)
     joined = transactions.join(identities, on="TransactionID", how="left")
     identity_columns = [column for column in identities.columns if column != "TransactionID"]
 
@@ -113,6 +127,7 @@ def ingest_ieee_cis(
     transactions = _read_transaction_csv(spark, transaction_path)
     identities = _read_identity_csv(spark, identity_path)
     _validate_ieee_transactions(transactions)
+    _validate_ieee_identities(identities)
 
     bronze_root = Path(bronze_path)
     write_table(

@@ -10,6 +10,8 @@ from pyspark.sql import DataFrame, SparkSession
 from pyspark.sql import functions as F
 
 from transaction_risk.features.pipeline import build_feature_table
+from transaction_risk.models.artifact import ScoringArtifact, load_scoring_artifact
+from transaction_risk.models.calibration import apply_calibrator
 from transaction_risk.models.evaluation import add_positive_probability
 from transaction_risk.models.thresholding import add_alert_flag
 from transaction_risk.spark.io import read_table, write_table
@@ -19,7 +21,7 @@ logger = logging.getLogger(__name__)
 
 def score_features_dataframe(
     features_df: DataFrame,
-    model: PipelineModel,
+    model: PipelineModel | ScoringArtifact,
     threshold: float = 0.5,
 ) -> DataFrame:
     """Score a feature DataFrame and add alert flag and threshold columns.
@@ -31,8 +33,17 @@ def score_features_dataframe(
     if not 0 <= threshold <= 1:
         raise ValueError("threshold must be between 0 and 1.")
 
+    artifact = model if isinstance(model, ScoringArtifact) else ScoringArtifact(model=model)
+
     input_columns = set(features_df.columns)
-    scored = add_positive_probability(model.transform(features_df))
+    scored = add_positive_probability(artifact.model.transform(features_df))
+    if artifact.calibrator is not None:
+        scored = (
+            apply_calibrator(scored, artifact.calibrator, output_column="calibrated_fraud_probability")
+            .withColumn("uncalibrated_fraud_probability", F.col("fraud_probability"))
+            .drop("fraud_probability")
+            .withColumnRenamed("calibrated_fraud_probability", "fraud_probability")
+        )
     artifact_columns = [
         column
         for column in scored.columns
@@ -54,7 +65,7 @@ def score_feature_table(
     """Score an already materialized gold feature table with a saved model."""
     logger.info("Scoring feature table %s with model %s", input_path, model_path)
     features = read_table(spark, input_path, table_format=table_format)
-    model = PipelineModel.load(str(model_path))
+    model = load_scoring_artifact(model_path)
     scored = score_features_dataframe(features, model, threshold=threshold)
     write_table(scored, output_path, table_format=table_format)
     logger.info("Wrote scored output to %s", output_path)
@@ -73,7 +84,7 @@ def score_transaction_table(
     logger.info("Scoring transaction table %s with model %s", input_path, model_path)
     transactions = read_table(spark, input_path, table_format=table_format)
     features = build_feature_table(transactions)
-    model = PipelineModel.load(str(model_path))
+    model = load_scoring_artifact(model_path)
     scored = score_features_dataframe(features, model, threshold=threshold)
     write_table(scored, output_path, table_format=table_format)
     logger.info("Wrote scored output to %s", output_path)

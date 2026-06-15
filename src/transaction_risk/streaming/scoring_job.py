@@ -4,14 +4,13 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from pyspark.ml.pipeline import PipelineModel
 from pyspark.sql import DataFrame, SparkSession
 from pyspark.sql import functions as F
 
 from transaction_risk.features.pipeline import build_feature_table
 from transaction_risk.ingestion.paysim import PAYSIM_SCHEMA
-from transaction_risk.models.evaluation import add_positive_probability
-from transaction_risk.models.thresholding import add_alert_flag
+from transaction_risk.models.artifact import load_scoring_artifact
+from transaction_risk.scoring.batch import score_features_dataframe
 
 
 def run_file_stream_scoring(
@@ -28,7 +27,7 @@ def run_file_stream_scoring(
     inside each micro-batch. This keeps the demo close to production code while
     avoiding unsupported unbounded aggregations in continuous streaming mode.
     """
-    model = PipelineModel.load(str(model_path))
+    artifact = load_scoring_artifact(model_path)
     stream_df = (
         spark.readStream.schema(PAYSIM_SCHEMA)
         .option("header", "true")
@@ -41,9 +40,9 @@ def run_file_stream_scoring(
         if batch_df.isEmpty():
             return
         features = build_feature_table(batch_df)
-        scored = add_positive_probability(model.transform(features))
-        alerts = add_alert_flag(scored, threshold=threshold).withColumn(
-            "stream_batch_id", F.lit(batch_id)
+        alerts = score_features_dataframe(features, artifact, threshold=threshold).withColumn(
+            "stream_batch_id",
+            F.lit(batch_id),
         )
         alerts.write.mode("append").parquet(str(output_path))
 

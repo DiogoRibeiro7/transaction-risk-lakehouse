@@ -100,6 +100,7 @@ def export_feature_registry_command(args: argparse.Namespace) -> None:
 
 def train_command(args: argparse.Namespace) -> None:
     """CLI handler for model training."""
+    from transaction_risk.models.artifact import save_scoring_artifact
     from transaction_risk.models.evaluation import add_positive_probability, evaluate_scored_model
     from transaction_risk.models.spark_ml import ModelTrainingConfig, train_model
     from transaction_risk.models.split import temporal_split
@@ -113,30 +114,10 @@ def train_command(args: argparse.Namespace) -> None:
     model = train_model(train_df, config=config)
     scored_validation = add_positive_probability(model.transform(validation_df))
     scored_test = add_positive_probability(model.transform(test_df))
-
-    threshold_metrics: dict[str, float | int] = {}
-    if args.threshold_strategy == "expected-value":
-        from transaction_risk.models.thresholding import optimize_threshold_by_expected_value
-
-        candidate_thresholds = [threshold / 100.0 for threshold in range(1, 100)]
-        threshold, threshold_metrics = optimize_threshold_by_expected_value(
-            scored_validation,
-            candidate_thresholds=candidate_thresholds,
-            amount_column=args.amount_column,
-            fraud_loss_rate=args.fraud_loss_rate,
-            false_positive_review_cost=args.false_positive_review_cost,
-            true_positive_recovery_rate=args.true_positive_recovery_rate,
-        )
-    else:
-        threshold = threshold_for_alert_rate(scored_validation, alert_rate=args.alert_rate)
-
-    metrics = evaluate_scored_model(scored_test, top_k=args.top_k, threshold=threshold)
-    metrics["selected_threshold"] = threshold
-    metrics["model_type"] = args.model_type
-    metrics["threshold_strategy"] = args.threshold_strategy
-    if threshold_metrics:
-        for key, value in threshold_metrics.items():
-            metrics[f"validation_{key}"] = value
+    active_validation = scored_validation
+    active_test = scored_test
+    active_probability_column = "fraud_probability"
+    calibrator = None
 
     calibration_rows: list[dict[str, float | int]] | None = None
     if args.calibrate_probabilities:
@@ -153,22 +134,76 @@ def train_command(args: argparse.Namespace) -> None:
             calibrator = fit_isotonic_calibrator(scored_validation)
         else:
             calibrator = fit_platt_calibrator(scored_validation)
-        calibrated_test = apply_calibrator(scored_test, calibrator)
 
-        calibrated_column = "calibrated_fraud_probability"
+        active_validation = apply_calibrator(
+            scored_validation,
+            calibrator,
+            output_column="calibrated_fraud_probability",
+        )
+        active_test = apply_calibrator(
+            scored_test,
+            calibrator,
+            output_column="calibrated_fraud_probability",
+        )
+        active_probability_column = "calibrated_fraud_probability"
+
+    threshold_metrics: dict[str, float | int] = {}
+    if args.threshold_strategy == "expected-value":
+        from transaction_risk.models.thresholding import optimize_threshold_by_expected_value
+
+        candidate_thresholds = [threshold / 100.0 for threshold in range(1, 100)]
+        threshold, threshold_metrics = optimize_threshold_by_expected_value(
+            active_validation,
+            candidate_thresholds=candidate_thresholds,
+            amount_column=args.amount_column,
+            score_column=active_probability_column,
+            fraud_loss_rate=args.fraud_loss_rate,
+            false_positive_review_cost=args.false_positive_review_cost,
+            true_positive_recovery_rate=args.true_positive_recovery_rate,
+        )
+    else:
+        threshold = threshold_for_alert_rate(
+            active_validation,
+            alert_rate=args.alert_rate,
+            probability_column=active_probability_column,
+        )
+
+    metrics = evaluate_scored_model(
+        active_test,
+        top_k=args.top_k,
+        threshold=threshold,
+        probability_column=active_probability_column,
+    )
+    metrics["selected_threshold"] = threshold
+    metrics["model_type"] = args.model_type
+    metrics["threshold_strategy"] = args.threshold_strategy
+    metrics["probability_column"] = active_probability_column
+    if threshold_metrics:
+        for key, value in threshold_metrics.items():
+            metrics[f"validation_{key}"] = value
+
+    if args.calibrate_probabilities:
+        from transaction_risk.models.calibration import (
+            brier_score,
+            calibration_table,
+            expected_calibration_error,
+        )
+
         metrics["calibration_method"] = args.calibration_method
         metrics["brier_score_uncalibrated"] = brier_score(scored_test, "fraud_probability")
-        metrics["brier_score_calibrated"] = brier_score(calibrated_test, calibrated_column)
+        metrics["brier_score_calibrated"] = brier_score(active_test, active_probability_column)
         metrics["expected_calibration_error_uncalibrated"] = expected_calibration_error(
-            scored_test, "fraud_probability"
+            scored_test,
+            "fraud_probability",
         )
         metrics["expected_calibration_error_calibrated"] = expected_calibration_error(
-            calibrated_test, calibrated_column
+            active_test,
+            active_probability_column,
         )
-        calibration_rows = calibration_table(calibrated_test, calibrated_column)
+        calibration_rows = calibration_table(active_test, active_probability_column)
 
     Path(args.model_output).parent.mkdir(parents=True, exist_ok=True)
-    model.write().overwrite().save(args.model_output)
+    save_scoring_artifact(model, args.model_output, calibrator=calibrator)
 
     report: dict[str, object] = dict(metrics)
     if calibration_rows is not None:
@@ -190,6 +225,7 @@ def train_command(args: argparse.Namespace) -> None:
         feature_table_path=args.input,
         model_type=args.model_type,
         threshold=threshold,
+        notes=f"calibration={args.calibration_method}" if calibrator is not None else None,
     )
     spark.stop()
 

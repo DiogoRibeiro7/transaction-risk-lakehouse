@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
-from pyspark.sql import DataFrame
+from pyspark.sql import DataFrame, Window
 from pyspark.sql import functions as F
+
+from transaction_risk.features.history import ordered_window, resolve_time_column
 
 CARD_COLUMNS = [f"card{index}" for index in range(1, 7)]
 EMAIL_COLUMNS = ["P_emaildomain", "R_emaildomain"]
@@ -22,7 +24,10 @@ def _normalize_string_column(df: DataFrame, source_column: str, target_column: s
     )
 
 
-def add_identity_features(df: DataFrame) -> DataFrame:
+def add_identity_features(
+    df: DataFrame,
+    time_column: str | None = None,
+) -> DataFrame:
     """Add IEEE-CIS identity and device features when relevant columns exist."""
     featured = df
 
@@ -76,12 +81,38 @@ def add_identity_features(df: DataFrame) -> DataFrame:
     if amount_column is None and "amount" in featured.columns:
         amount_column = "amount"
 
+    resolved_time_column: str | None = None
     if amount_column is not None and "ProductCD" in featured.columns:
-        product_code_stats = featured.groupBy("ProductCD").agg(
-            F.avg(F.col(amount_column)).alias("product_cd_avg_transaction_amount"),
-            F.max(F.col(amount_column)).alias("product_cd_max_transaction_amount"),
-            F.count(F.lit(1)).alias("product_cd_transaction_count"),
+        try:
+            resolved_time_column = time_column or resolve_time_column(featured)
+        except ValueError:
+            resolved_time_column = None
+
+    if amount_column is not None and "ProductCD" in featured.columns and resolved_time_column is not None:
+        product_history = ordered_window(featured, ["ProductCD"], resolved_time_column).rowsBetween(
+            Window.unboundedPreceding,
+            -1,
         )
-        featured = featured.join(product_code_stats, on="ProductCD", how="left")
+        featured = (
+            featured.withColumn(
+                "product_cd_avg_transaction_amount",
+                F.avg(F.col(amount_column)).over(product_history),
+            )
+            .withColumn(
+                "product_cd_max_transaction_amount",
+                F.max(F.col(amount_column)).over(product_history),
+            )
+            .withColumn(
+                "product_cd_transaction_count",
+                F.count(F.lit(1)).over(product_history),
+            )
+            .fillna(
+                {
+                    "product_cd_avg_transaction_amount": 0.0,
+                    "product_cd_max_transaction_amount": 0.0,
+                    "product_cd_transaction_count": 0,
+                }
+            )
+        )
 
     return featured
