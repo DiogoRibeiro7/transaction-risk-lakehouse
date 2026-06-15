@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import logging
 import os
+import sys
 from collections.abc import Mapping
 from pathlib import Path
 from typing import Any
@@ -12,6 +13,19 @@ import yaml
 from pyspark.sql import SparkSession
 
 logger = logging.getLogger(__name__)
+
+
+def load_local_dotenv(path: Path = Path(".env")) -> None:
+    """Load local KEY=VALUE pairs without overriding the current environment."""
+    if not path.exists():
+        return
+
+    for line in path.read_text(encoding="utf-8").splitlines():
+        stripped = line.strip()
+        if not stripped or stripped.startswith("#") or "=" not in stripped:
+            continue
+        key, _, value = stripped.partition("=")
+        os.environ.setdefault(key.strip(), value.strip())
 
 
 def apply_spark_java_home() -> None:
@@ -44,10 +58,20 @@ def apply_hadoop_home() -> None:
         os.environ["PATH"] = hadoop_bin + os.pathsep + current_path
 
 
+def apply_pyspark_python() -> str:
+    """Pin Spark driver and worker Python to the active interpreter."""
+    python_executable = sys.executable
+    os.environ.setdefault("PYSPARK_PYTHON", python_executable)
+    os.environ.setdefault("PYSPARK_DRIVER_PYTHON", python_executable)
+    return python_executable
+
+
 def prepare_spark_environment() -> None:
     """Apply all local environment overrides needed before launching the JVM."""
+    load_local_dotenv()
     apply_spark_java_home()
     apply_hadoop_home()
+    apply_pyspark_python()
 
 
 def load_yaml_config(path: str | Path) -> dict[str, Any]:
@@ -102,9 +126,15 @@ def create_spark_session(
         Configured Spark session.
     """
     prepare_spark_environment()
+    python_executable = apply_pyspark_python()
     builder = SparkSession.builder.appName(app_name)
     if master is not None:
         builder = builder.master(master)
+
+    builder = (
+        builder.config("spark.pyspark.python", python_executable)
+        .config("spark.pyspark.driver.python", python_executable)
+    )
 
     for key, value in (configs or {}).items():
         builder = builder.config(key, value)
