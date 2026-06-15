@@ -80,7 +80,7 @@ raw CSV
   -> bronze Parquet    # schema-enforced raw transaction table
   -> silver Parquet    # cleaned, typed, deduplicated transactions
   -> gold Parquet      # model-ready features
-  -> model artifacts   # Spark ML pipeline model
+  -> model artifacts   # bundled scoring artifact (base Spark model + optional calibrator)
   -> alerts            # scored transactions above threshold
 ```
 
@@ -110,9 +110,9 @@ transaction-risk-lakehouse/
 poetry install
 ```
 
-PySpark requires Java 17 or 21. Java 24+ does not work with Spark 4 because it removes the Security Manager that Hadoop still depends on. If your machine-wide `JAVA_HOME` points to a newer JDK, set `SPARK_JAVA_HOME` to a compatible JDK in a local `.env` file (the test suite loads it automatically, and Spark sessions created by the CLI apply it before launching the JVM).
+PySpark requires Java 17 or 21. Java 24+ does not work with Spark 4 because it removes the Security Manager that Hadoop still depends on. If your machine-wide `JAVA_HOME` points to a newer JDK, set `SPARK_JAVA_HOME` to a compatible JDK in a local `.env` file. Spark sessions created through the package now load `.env` automatically before launching the JVM.
 
-On Windows, Hadoop filesystem operations (including Spark ML model saves) additionally need `winutils.exe` and `hadoop.dll`; point `HADOOP_HOME` at a folder whose `bin` contains them (builds for each Hadoop version are available from the `cdarlint/winutils` GitHub repository).
+On Windows, Hadoop filesystem operations (including Spark ML model saves) additionally need `winutils.exe` and `hadoop.dll`; point `HADOOP_HOME` at a folder whose `bin` contains them (builds for each Hadoop version are available from the `cdarlint/winutils` GitHub repository). The session helper also pins `PYSPARK_PYTHON` and `PYSPARK_DRIVER_PYTHON` to the active interpreter so local workers do not fall back to the Microsoft Store Python alias.
 
 ```text
 SPARK_JAVA_HOME=C:\Program Files\Eclipse Adoptium\jdk-21.0.11.10-hotspot
@@ -208,6 +208,8 @@ The default model pipeline includes:
 - random forest candidate model
 - gradient-boosted tree candidate model
 
+Historical aggregate features are built causally: account, counterparty, graph, and optional IEEE-CIS product-code aggregates only use rows strictly earlier than the current transaction.
+
 The evaluation module reports:
 
 - ROC-AUC
@@ -233,7 +235,7 @@ transaction-risk train \
 
 ### Probability calibration
 
-Calibration is optional and off by default. When enabled, a calibrator is fitted on validation predictions (Platt scaling by default, isotonic regression optionally) and calibration metrics are written to the metrics report: Brier score before and after calibration, a binned expected calibration error approximation, and a calibration table.
+Calibration is optional and off by default. When enabled, a calibrator is fitted on validation predictions (Platt scaling by default, isotonic regression optionally), used for threshold selection and test evaluation, and saved inside the deployed scoring artifact. The metrics report includes Brier score before and after calibration, a binned expected calibration error approximation, and a calibration table.
 
 ```bash
 transaction-risk train \
@@ -321,13 +323,22 @@ transaction-risk export-feature-registry --output reports/feature_registry.md
 
 Each successful training run appends a versioned entry to a local JSON Lines registry under `models/registry.jsonl`. An entry records the model path, model type, training feature table, selected threshold, evaluation metrics, and registration time. The registry functions are plain Python and do not require Spark.
 
+`--model-output` now writes a bundled scoring artifact directory. By default it contains:
+
+```text
+models/fraud_risk_pipeline/
+  artifact_metadata.json
+  base_model/
+  calibrator/           # only when --calibrate-probabilities is enabled
+```
+
 ```bash
 transaction-risk list-models --registry models/registry.jsonl
 ```
 
 ## Batch scoring
 
-Batch scoring supports production-style daily scoring of already materialized tables. It can score gold feature tables directly, or score cleaned silver transactions by building features first. The output contains the fraud score, alert flag, selected threshold, and the input identifier columns.
+Batch scoring supports production-style daily scoring of already materialized tables. It can score gold feature tables directly, or score cleaned silver transactions by building features first. The output contains the deployed fraud score, alert flag, selected threshold, and the input identifier columns. When the saved artifact includes a calibrator, scoring applies it automatically and preserves the uncalibrated score as `uncalibrated_fraud_probability`.
 
 ```bash
 transaction-risk score-batch \
@@ -355,7 +366,7 @@ make score-batch
 
 ## Streaming demo
 
-The streaming demo reads incoming CSV files from a local folder and writes scored alerts to Parquet.
+The streaming demo reads incoming CSV files from a local folder and writes scored alerts to Parquet. It loads the same bundled scoring artifact used by batch scoring, so optional calibration is applied there as well.
 
 ```bash
 transaction-risk score-stream \

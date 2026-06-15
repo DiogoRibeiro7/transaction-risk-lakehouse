@@ -27,8 +27,8 @@ Features are built with PySpark DataFrame APIs only — no pandas conversion —
 
 - **Transaction features**: log amounts, balance deltas and inconsistencies, type indicators, merchant destination flags.
 - **Temporal features**: per-account transaction history (time since previous transaction, rolling mean/std of amounts, z-scores) computed with Spark windows that only look backwards in time.
-- **Entity features**: per-account and per-counterparty aggregates.
-- **Graph features**: in/out degree, edge frequency, and destination historical fraud rate computed with DataFrame aggregations (no graph library needed).
+- **Entity features**: per-account and per-counterparty aggregates computed from prior transactions only.
+- **Graph features**: in/out degree, edge frequency, and destination historical fraud rate computed from prior transactions only (no graph library needed).
 - **Identity features** (IEEE-CIS): card presence, email-domain indicators, device type, and missingness counts, all robust to absent columns.
 
 Every feature has a registry entry with owner, source columns, and leakage notes (`transaction-risk export-feature-registry`).
@@ -41,7 +41,7 @@ Random splits leak future information into training: an account's later transact
 
 Three Spark ML models are compared under the same temporal split: logistic regression (weighted, baseline), random forest, and gradient-boosted trees. `make benchmark` regenerates the comparison table (ROC-AUC, PR-AUC, precision@K, recall@K, alert count, selected threshold) in `reports/benchmark/`. Class imbalance is handled with inverse-frequency class weights rather than undersampling, so the probability scale stays interpretable.
 
-Optional probability calibration (Platt scaling or isotonic regression, fitted on the validation window) produces calibrated probabilities with Brier score and binned expected-calibration-error reporting.
+Optional probability calibration (Platt scaling or isotonic regression, fitted on the validation window) produces calibrated probabilities with Brier score and binned expected-calibration-error reporting. When enabled, the calibrator is saved with the model artifact and used by batch and streaming scoring, so deployed probabilities match the reported calibrated metrics.
 
 ## Operational thresholding
 
@@ -50,7 +50,11 @@ Two threshold strategies are supported:
 - **Alert-rate targeting** (default): pick the score threshold that produces a target alert volume, matching review capacity.
 - **Expected value**: pick the threshold that maximizes recovered fraud value minus missed fraud losses and review costs, with configurable cost parameters.
 
-Each training run registers the model with its threshold and metrics in a local registry (`models/registry.jsonl`).
+Each training run registers the model with its threshold and metrics in a local registry (`models/registry.jsonl`). The saved model path is a bundled scoring artifact directory containing the base Spark model and, when enabled, the fitted calibrator.
+
+## Local Spark environment
+
+The repository now makes local Spark sessions more predictable on Windows and mixed-Python environments. Session startup loads a local `.env` automatically, applies `SPARK_JAVA_HOME` and `HADOOP_HOME` when present, and pins both `PYSPARK_PYTHON` and `PYSPARK_DRIVER_PYTHON` to the active interpreter. That avoids the common failure mode where Spark workers start via the Microsoft Store Python alias instead of the real interpreter.
 
 ## Monitoring
 
