@@ -81,6 +81,29 @@ def _validate_ieee_identities(df: DataFrame) -> None:
         raise ValueError("IEEE-CIS identities contain duplicate TransactionID values.")
 
 
+def _add_ieee_identity_columns(
+    transactions: DataFrame,
+    identities: DataFrame | None = None,
+) -> DataFrame:
+    """Join IEEE-CIS identities and derived flags onto transaction rows."""
+    if identities is None:
+        return transactions.withColumn("event_time", F.to_timestamp(F.from_unixtime("TransactionDT")))
+
+    joined = transactions.join(identities, on="TransactionID", how="left")
+    identity_columns = [column for column in identities.columns if column != "TransactionID"]
+
+    has_identity_expression = F.lit(0)
+    if identity_columns:
+        has_identity_expression = F.greatest(
+            *[F.col(column).isNotNull().cast("int") for column in identity_columns]
+        )
+
+    return joined.withColumn("has_identity", has_identity_expression.cast("int")).withColumn(
+        "event_time",
+        F.to_timestamp(F.from_unixtime("TransactionDT")),
+    )
+
+
 def read_ieee_cis(
     spark: SparkSession,
     transaction_path: str | Path,
@@ -91,28 +114,11 @@ def read_ieee_cis(
     _validate_ieee_transactions(transactions)
 
     if identity_path is None:
-        return transactions.withColumn("event_time", F.to_timestamp(F.from_unixtime("TransactionDT")))
+        return _add_ieee_identity_columns(transactions)
 
     identities = _read_identity_csv(spark, identity_path)
     _validate_ieee_identities(identities)
-    joined = transactions.join(identities, on="TransactionID", how="left")
-    identity_columns = [column for column in identities.columns if column != "TransactionID"]
-
-    has_identity_expression = F.lit(0)
-    if identity_columns:
-        has_identity_expression = (
-            F.greatest(
-                *[
-                    F.col(column).isNotNull().cast("int")
-                    for column in identity_columns
-                ]
-            )
-        )
-
-    return joined.withColumn("has_identity", has_identity_expression.cast("int")).withColumn(
-        "event_time",
-        F.to_timestamp(F.from_unixtime("TransactionDT")),
-    )
+    return _add_ieee_identity_columns(transactions, identities)
 
 
 def ingest_ieee_cis(
@@ -141,6 +147,6 @@ def ingest_ieee_cis(
         table_format=table_format,
     )
 
-    silver = read_ieee_cis(spark, transaction_path, identity_path)
+    silver = _add_ieee_identity_columns(transactions, identities)
     write_table(silver, silver_path, table_format=table_format)
     return transactions, identities, silver
