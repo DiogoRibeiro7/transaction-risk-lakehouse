@@ -55,4 +55,5 @@ testpaths = ["tests"]
 addopts = "-q -m 'not slow'"
 markers = [
   "slow: Spark integration tests that are too expensive for the default quick run",
+  "spark_slow: especially heavy Spark tests that are impractical on some local Windows setups",
 ]

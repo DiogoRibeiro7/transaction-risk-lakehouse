@@ -5,7 +5,11 @@ from pathlib import Path
 
 import pytest
 
-from transaction_risk.ingestion.ieee_cis import ingest_ieee_cis, read_ieee_cis
+from transaction_risk.ingestion.ieee_cis import (
+    _add_ieee_identity_columns,
+    ingest_ieee_cis,
+    read_ieee_cis,
+)
 
 FIXTURES_DIR = Path("tests") / "fixtures" / "ieee_cis"
 
@@ -16,6 +20,34 @@ def _csv_fixture_to_df(spark, path: Path):
     return spark.createDataFrame(rows)
 
 
+def test_add_ieee_identity_columns_smoke(spark) -> None:
+    transactions = spark.createDataFrame(
+        [
+            ("1001", 10, 25.5, 0),
+            ("1002", 20, 99.99, 1),
+            ("1003", 30, 10.0, 0),
+        ],
+        ["TransactionID", "TransactionDT", "TransactionAmt", "isFraud"],
+    )
+    identities = spark.createDataFrame(
+        [
+            ("1001", "desktop"),
+            ("1002", "mobile"),
+        ],
+        ["TransactionID", "DeviceType"],
+    )
+
+    result = _add_ieee_identity_columns(transactions, identities)
+    rows = {row["TransactionID"]: row.asDict() for row in result.collect()}
+
+    assert rows["1001"]["has_identity"] == 1
+    assert rows["1002"]["has_identity"] == 1
+    assert rows["1003"]["has_identity"] == 0
+    assert rows["1001"]["event_time"] is not None
+
+
+@pytest.mark.slow
+@pytest.mark.spark_slow
 def test_read_ieee_cis_preserves_transactions_without_identity(
     spark,
     monkeypatch: pytest.MonkeyPatch,
@@ -41,6 +73,8 @@ def test_read_ieee_cis_preserves_transactions_without_identity(
     assert rows["1001"]["event_time"] is not None
 
 
+@pytest.mark.slow
+@pytest.mark.spark_slow
 def test_ingest_ieee_cis_writes_bronze_and_silver_tables(
     spark,
     repo_tmp_path: Path,
@@ -81,6 +115,8 @@ def test_ingest_ieee_cis_writes_bronze_and_silver_tables(
     ]
 
 
+@pytest.mark.slow
+@pytest.mark.spark_slow
 def test_ingest_ieee_cis_rejects_duplicate_transaction_ids(
     spark,
     repo_tmp_path: Path,
@@ -101,6 +137,8 @@ def test_ingest_ieee_cis_rejects_duplicate_transaction_ids(
         )
 
 
+@pytest.mark.slow
+@pytest.mark.spark_slow
 def test_ingest_ieee_cis_rejects_duplicate_identity_transaction_ids(
     spark,
     repo_tmp_path: Path,

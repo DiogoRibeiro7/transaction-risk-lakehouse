@@ -93,7 +93,9 @@ def _add_ieee_identity_columns(
     identity_columns = [column for column in identities.columns if column != "TransactionID"]
 
     has_identity_expression = F.lit(0)
-    if identity_columns:
+    if len(identity_columns) == 1:
+        has_identity_expression = F.col(identity_columns[0]).isNotNull().cast("int")
+    elif identity_columns:
         has_identity_expression = F.greatest(
             *[F.col(column).isNotNull().cast("int") for column in identity_columns]
         )
