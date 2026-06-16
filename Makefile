@@ -1,4 +1,4 @@
-.PHONY: install sample-data download-ieee-cis ingest features train score-batch benchmark demo-artifacts test lint format clean
+.PHONY: install sample-data download-ieee-cis ingest features train score-batch benchmark demo-artifacts test test-slow test-spark-slow lint format clean
 
 install:
 	poetry install
@@ -29,6 +29,12 @@ demo-artifacts:
 
 test:
 	poetry run pytest
+
+test-slow:
+	poetry run pytest -m "slow and not spark_slow"
+
+test-spark-slow:
+	poetry run pytest -m spark_slow
 
 lint:
 	poetry run ruff check src tests

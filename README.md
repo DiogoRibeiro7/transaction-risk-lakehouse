@@ -153,9 +153,8 @@ make test
 The default pytest configuration skips tests marked `slow`, so routine local runs stay practical on laptops and Windows Spark setups. To run the heavier suites explicitly:
 
 ```bash
-pytest -m slow
-pytest -m spark_slow
-pytest -m "slow and not spark_slow"
+make test-slow
+make test-spark-slow
 ```
 
 ## CLI examples
@@ -445,9 +444,9 @@ make test
 Examples:
 
 ```bash
-pytest -m "not slow"
-pytest -m "slow and not spark_slow"
-pytest -m spark_slow
+make test
+make test-slow
+make test-spark-slow
 ```
 
 ## Portfolio narrative
