@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from pyspark.sql import Column, DataFrame, Window
 from pyspark.sql import functions as F
+from pyspark.sql.window import WindowSpec
 
 
 def resolve_time_column(df: DataFrame, candidates: list[str] | None = None) -> str:
@@ -27,6 +28,6 @@ def order_columns(df: DataFrame, time_column: str) -> list[Column]:
     return columns
 
 
-def ordered_window(df: DataFrame, partition_columns: list[str], time_column: str) -> Window:
+def ordered_window(df: DataFrame, partition_columns: list[str], time_column: str) -> WindowSpec:
     """Build a partitioned temporal window ordered by time and a stable tie-breaker."""
     return Window.partitionBy(*partition_columns).orderBy(*order_columns(df, time_column))

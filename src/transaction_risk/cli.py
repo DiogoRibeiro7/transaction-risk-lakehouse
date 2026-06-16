@@ -168,11 +168,13 @@ def train_command(args: argparse.Namespace) -> None:
             probability_column=active_probability_column,
         )
 
-    metrics = evaluate_scored_model(
-        active_test,
-        top_k=args.top_k,
-        threshold=threshold,
-        probability_column=active_probability_column,
+    metrics: dict[str, object] = dict(
+        evaluate_scored_model(
+            active_test,
+            top_k=args.top_k,
+            threshold=threshold,
+            probability_column=active_probability_column,
+        )
     )
     metrics["selected_threshold"] = threshold
     metrics["model_type"] = args.model_type
