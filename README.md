@@ -150,6 +150,14 @@ make train
 make test
 ```
 
+The default pytest configuration skips tests marked `slow`, so routine local runs stay practical on laptops and Windows Spark setups. To run the heavier suites explicitly:
+
+```bash
+pytest -m slow
+pytest -m spark_slow
+pytest -m "slow and not spark_slow"
+```
+
 ## CLI examples
 
 ```bash
@@ -427,6 +435,19 @@ See [orchestration/README.md](orchestration/README.md) for details.
 make format
 make lint
 make test
+```
+
+`make test` uses the default pytest marker filter (`not slow`). The marker conventions are:
+
+- `slow`: expensive Spark integration or persistence tests that are excluded from the default run
+- `spark_slow`: the heaviest Spark tests, mainly for local Windows environments where worker/process startup dominates runtime
+
+Examples:
+
+```bash
+pytest -m "not slow"
+pytest -m "slow and not spark_slow"
+pytest -m spark_slow
 ```
 
 ## Portfolio narrative
