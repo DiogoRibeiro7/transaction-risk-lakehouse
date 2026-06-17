@@ -34,7 +34,7 @@ def test_build_kaggle_download_command() -> None:
         "-c",
         "ieee-fraud-detection",
         "-p",
-        "data\\raw",
+        str(Path("data/raw")),
         "--force",
     ]
 
