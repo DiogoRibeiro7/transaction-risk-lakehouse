@@ -8,6 +8,10 @@ The project is designed as a portfolio repository. It is not only a modelling no
 
 See [docs/architecture.md](docs/architecture.md) for the architecture diagram covering the lakehouse layers, model training and registry, batch and streaming scoring, and monitoring. For a narrative tour of the design decisions — problem framing, features, validation, thresholding, monitoring, and honest limitations — read [docs/walkthrough.md](docs/walkthrough.md). The [notebooks/](notebooks/) folder contains short runnable notebooks for EDA, feature engineering, temporal validation, model training, graph features, streaming, and monitoring; [docs/limitations.md](docs/limitations.md) covers what this project deliberately does not claim.
 
+## Current status
+
+The repository is feature-complete for its intended portfolio scope: the main ingestion, feature engineering, training, scoring, monitoring, and documentation paths are implemented and wired together. It is not fully "finished" in an operational sense, though. The main remaining work is tracked in [ROADMAP.md](ROADMAP.md) under **Phase 7 — Operational maturity**, with the biggest gaps being test-path reliability and speed on local Spark, stronger end-to-end validation, and a more production-like execution story.
+
 ## What this project demonstrates
 
 - PySpark DataFrame pipelines
@@ -450,6 +454,10 @@ make test
 make test-slow
 make test-spark-slow
 ```
+
+## Documentation policy
+
+This repository treats `README.md` as a maintained operational entry point, not static marketing text. When repository behavior, workflow, scope, environment support, or maturity status changes, update the README in the same change.
 
 ## Portfolio narrative
 
