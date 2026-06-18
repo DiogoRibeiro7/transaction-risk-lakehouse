@@ -8,8 +8,9 @@ license = "MIT"
 packages = [{ include = "transaction_risk", from = "src" }]
 
 [tool.poetry.dependencies]
-python = ">=3.10,<3.13"
+python = ">=3.10,<3.15"
 pyspark = ">=4.0,<5.0"
+numpy = ">=1.21,<3.0"
 pyyaml = ">=6.0,<7.0"
 
 [tool.poetry.group.dev.dependencies]

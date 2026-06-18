@@ -45,4 +45,4 @@ format:
 	poetry run ruff check --fix src tests scripts
 
 clean:
-	rm -rf data/bronze data/silver data/gold data/scored data/streaming/checkpoints models reports/metrics.json
+	poetry run python -c "from pathlib import Path; import shutil; [shutil.rmtree(path, ignore_errors=True) if path.is_dir() else path.unlink() for path in [Path('data/bronze'), Path('data/silver'), Path('data/gold'), Path('data/scored'), Path('data/streaming/checkpoints'), Path('models')] if path.exists()]; metrics = Path('reports/metrics.json'); metrics.exists() and metrics.unlink()"

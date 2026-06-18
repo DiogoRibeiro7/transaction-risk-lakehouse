@@ -8,7 +8,7 @@ The default dataset is PaySim (or a locally generated PaySim-like sample). Synth
 
 ## Label leakage risk
 
-- `destination_historical_fraud_rate` aggregates the fraud label over destination accounts. The feature pipeline computes it over the full input table; in a real system it must be derived from confirmed-fraud history available *before* each transaction, with realistic confirmation delay.
+- `destination_historical_fraud_rate` aggregates the fraud label over destination accounts. The current feature pipeline computes it causally from prior rows only, but it still assumes fraud confirmation is available immediately; a real system should derive it from confirmed-fraud history available *before* each transaction, with realistic confirmation delay.
 - Any feature built from the silver table after labels are attached carries similar risk. The feature registry flags leakage risk per feature; review those notes before trusting an offline metric.
 
 ## Temporal validation assumptions

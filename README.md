@@ -110,6 +110,8 @@ transaction-risk-lakehouse/
 poetry install
 ```
 
+The project supports Python 3.10 and above. PySpark 4.x currently supports Python 3.10+, including Python 3.13, so a local 3.13 interpreter is valid as long as the rest of the environment is compatible.
+
 PySpark requires Java 17 or 21. Java 24+ does not work with Spark 4 because it removes the Security Manager that Hadoop still depends on. If your machine-wide `JAVA_HOME` points to a newer JDK, set `SPARK_JAVA_HOME` to a compatible JDK in a local `.env` file. Spark sessions created through the package now load `.env` automatically before launching the JVM.
 
 On Windows, Hadoop filesystem operations (including Spark ML model saves) additionally need `winutils.exe` and `hadoop.dll`; point `HADOOP_HOME` at a folder whose `bin` contains them (builds for each Hadoop version are available from the `cdarlint/winutils` GitHub repository). The session helper also pins `PYSPARK_PYTHON` and `PYSPARK_DRIVER_PYTHON` to the active interpreter so local workers do not fall back to the Microsoft Store Python alias.
@@ -150,7 +152,7 @@ make train
 make test
 ```
 
-The default pytest configuration skips tests marked `slow`, so routine local runs stay practical on laptops and Windows Spark setups. To run the heavier suites explicitly:
+The default pytest configuration skips tests marked `slow`, so routine local runs avoid the heaviest Spark integration and persistence checks. To run the heavier suites explicitly:
 
 ```bash
 make test-slow
