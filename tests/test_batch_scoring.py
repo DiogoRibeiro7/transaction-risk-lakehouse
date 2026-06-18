@@ -3,16 +3,12 @@ from __future__ import annotations
 import pytest
 
 from transaction_risk.features.pipeline import build_feature_table
-from transaction_risk.models.artifact import save_scoring_artifact
-from transaction_risk.models.calibration import fit_platt_calibrator
-from transaction_risk.models.evaluation import add_positive_probability
-from transaction_risk.models.spark_ml import train_model
+from transaction_risk.models.artifact import ScoringArtifact
 from transaction_risk.scoring.batch import (
     score_feature_table,
     score_features_dataframe,
     score_transaction_table,
 )
-from transaction_risk.spark.io import write_table
 
 
 def _silver_transactions(spark):
@@ -56,28 +52,6 @@ def scoring_features_df(spark):
     return build_feature_table(_silver_transactions(spark))
 
 
-@pytest.fixture(scope="module")
-def batch_scoring_fixture_bundle(spark, tmp_path_factory):
-    transactions = _silver_transactions(spark)
-    features = build_feature_table(transactions)
-    model = train_model(features)
-    scored = add_positive_probability(model.transform(features))
-    calibrator = fit_platt_calibrator(scored)
-
-    root = tmp_path_factory.mktemp("batch_scoring")
-    trained_model_path = root / "fraud_risk_pipeline"
-    calibrated_model_path = root / "fraud_risk_calibrated_artifact"
-    model.write().overwrite().save(str(trained_model_path))
-    save_scoring_artifact(model, calibrated_model_path, calibrator=calibrator)
-
-    return {
-        "transactions": transactions,
-        "features": features,
-        "trained_model_path": str(trained_model_path),
-        "calibrated_model_path": str(calibrated_model_path),
-    }
-
-
 class _FakeScoringModel:
     def transform(self, df):
         from pyspark.sql import functions as F
@@ -114,69 +88,127 @@ def test_score_features_dataframe_rejects_invalid_threshold(scoring_features_df)
 
 
 @pytest.mark.slow
-def test_score_feature_table_end_to_end(spark, batch_scoring_fixture_bundle, repo_tmp_path) -> None:
-    features = batch_scoring_fixture_bundle["features"]
-    input_path = repo_tmp_path / "gold_features"
-    output_path = repo_tmp_path / "scored_features"
-    write_table(features, input_path)
+def test_score_feature_table_end_to_end(
+    spark,
+    monkeypatch: pytest.MonkeyPatch,
+    scoring_features_df,
+) -> None:
+    features = scoring_features_df
+    input_path = "gold_features"
+    output_path = "scored_features"
+    model_path = "fake_model"
+    written: dict[str, object] = {}
+
+    monkeypatch.setattr(
+        "transaction_risk.scoring.batch.load_scoring_artifact",
+        lambda path: ScoringArtifact(model=_FakeScoringModel()),
+    )
+    monkeypatch.setattr("transaction_risk.scoring.batch.add_positive_probability", lambda df: df)
+    monkeypatch.setattr("transaction_risk.scoring.batch.read_table", lambda spark_session, path, table_format="parquet": features)
+    monkeypatch.setattr(
+        "transaction_risk.scoring.batch.write_table",
+        lambda df, path, table_format="parquet", mode="overwrite", partition_columns=None: written.update(
+            {"df": df, "path": path, "table_format": table_format}
+        ),
+    )
 
     score_feature_table(
         spark=spark,
         input_path=input_path,
-        model_path=batch_scoring_fixture_bundle["trained_model_path"],
+        model_path=model_path,
         output_path=output_path,
         threshold=0.5,
     )
 
-    scored = spark.read.parquet(str(output_path))
+    scored = written["df"]
     assert scored.count() == features.count()
     assert {"fraud_probability", "is_alert", "selected_threshold"} <= set(scored.columns)
+    assert written["path"] == output_path
 
 
 @pytest.mark.slow
 def test_score_transaction_table_builds_features_first(
     spark,
-    batch_scoring_fixture_bundle,
-    repo_tmp_path,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    transactions = batch_scoring_fixture_bundle["transactions"]
-    input_path = repo_tmp_path / "silver_transactions"
-    output_path = repo_tmp_path / "scored_transactions"
-    write_table(transactions, input_path)
+    transactions = _silver_transactions(spark)
+    input_path = "silver_transactions"
+    output_path = "scored_transactions"
+    model_path = "fake_model"
+    written: dict[str, object] = {}
+
+    monkeypatch.setattr(
+        "transaction_risk.scoring.batch.load_scoring_artifact",
+        lambda path: ScoringArtifact(model=_FakeScoringModel()),
+    )
+    monkeypatch.setattr("transaction_risk.scoring.batch.add_positive_probability", lambda df: df)
+    monkeypatch.setattr(
+        "transaction_risk.scoring.batch.read_table",
+        lambda spark_session, path, table_format="parquet": transactions,
+    )
+    monkeypatch.setattr(
+        "transaction_risk.scoring.batch.write_table",
+        lambda df, path, table_format="parquet", mode="overwrite", partition_columns=None: written.update(
+            {"df": df, "path": path, "table_format": table_format}
+        ),
+    )
 
     score_transaction_table(
         spark=spark,
         input_path=input_path,
-        model_path=batch_scoring_fixture_bundle["trained_model_path"],
+        model_path=model_path,
         output_path=output_path,
         threshold=0.5,
     )
 
-    scored = spark.read.parquet(str(output_path))
+    scored = written["df"]
     assert scored.count() == transactions.count()
     assert {"fraud_probability", "is_alert", "selected_threshold"} <= set(scored.columns)
     assert "nameOrig" in scored.columns
+    assert written["path"] == output_path
 
 
 @pytest.mark.slow
 def test_score_feature_table_supports_calibrated_artifacts(
     spark,
-    batch_scoring_fixture_bundle,
-    repo_tmp_path,
+    monkeypatch: pytest.MonkeyPatch,
+    scoring_features_df,
 ) -> None:
-    features = batch_scoring_fixture_bundle["features"]
-    input_path = repo_tmp_path / "gold_features_calibrated"
-    output_path = repo_tmp_path / "scored_features_calibrated"
-    write_table(features, input_path)
+    features = scoring_features_df
+    input_path = "gold_features_calibrated"
+    output_path = "scored_features_calibrated"
+    model_path = "fake_calibrated_model"
+    written: dict[str, object] = {}
+
+    monkeypatch.setattr(
+        "transaction_risk.scoring.batch.load_scoring_artifact",
+        lambda path: ScoringArtifact(model=_FakeScoringModel(), calibrator=object()),
+    )
+    monkeypatch.setattr("transaction_risk.scoring.batch.add_positive_probability", lambda df: df)
+    monkeypatch.setattr("transaction_risk.scoring.batch.read_table", lambda spark_session, path, table_format="parquet": features)
+    monkeypatch.setattr(
+        "transaction_risk.scoring.batch.write_table",
+        lambda df, path, table_format="parquet", mode="overwrite", partition_columns=None: written.update(
+            {"df": df, "path": path, "table_format": table_format}
+        ),
+    )
+
+    def _fake_apply_calibrator(scored_df, calibrator_model, output_column="calibrated_fraud_probability"):
+        from pyspark.sql import functions as F
+
+        return scored_df.withColumn(output_column, F.col("fraud_probability") * F.lit(0.95) + F.lit(0.02))
+
+    monkeypatch.setattr("transaction_risk.scoring.batch.apply_calibrator", _fake_apply_calibrator)
 
     score_feature_table(
         spark=spark,
         input_path=input_path,
-        model_path=batch_scoring_fixture_bundle["calibrated_model_path"],
+        model_path=model_path,
         output_path=output_path,
         threshold=0.5,
     )
 
-    scored = spark.read.parquet(str(output_path))
+    scored = written["df"]
     assert scored.count() == features.count()
     assert {"fraud_probability", "is_alert", "selected_threshold"} <= set(scored.columns)
+    assert "uncalibrated_fraud_probability" in scored.columns

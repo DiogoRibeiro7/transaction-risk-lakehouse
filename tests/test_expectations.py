@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import json
 
+import pytest
+
 from transaction_risk.validation.expectations import (
     expect_binary_label,
     expect_column_completeness,
@@ -12,6 +14,8 @@ from transaction_risk.validation.expectations import (
     expectation_suite_to_markdown,
     run_transaction_expectation_suite,
 )
+
+pytestmark = [pytest.mark.slow, pytest.mark.spark_slow]
 
 CLEAN_COLUMNS = ["transaction_id", "step", "type", "amount", "isFraud"]
 

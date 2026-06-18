@@ -47,7 +47,8 @@ def score_features_dataframe(
     artifact_columns = [
         column
         for column in scored.columns
-        if column not in input_columns and column != "fraud_probability"
+        if column not in input_columns
+        and column not in {"fraud_probability", "uncalibrated_fraud_probability"}
     ]
     cleaned = scored.drop(*artifact_columns)
     alerted = add_alert_flag(cleaned, threshold=threshold)

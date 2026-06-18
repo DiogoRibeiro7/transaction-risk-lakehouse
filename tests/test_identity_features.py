@@ -1,9 +1,13 @@
 from __future__ import annotations
 
+import pytest
+
 from pyspark.sql.types import StringType, StructField, StructType
 
 from transaction_risk.features.identity_features import add_identity_features
 from transaction_risk.features.pipeline import build_feature_table
+
+pytestmark = [pytest.mark.slow, pytest.mark.spark_slow]
 
 
 def test_add_identity_features_with_all_expected_columns(spark) -> None:

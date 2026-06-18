@@ -11,6 +11,8 @@ from transaction_risk.models.calibration import (
     fit_platt_calibrator,
 )
 
+pytestmark = [pytest.mark.slow, pytest.mark.spark_slow]
+
 
 def _validation_frame(spark):
     return spark.createDataFrame(

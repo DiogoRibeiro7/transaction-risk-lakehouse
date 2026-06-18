@@ -19,6 +19,8 @@ from transaction_risk.monitoring.report import (
     write_monitoring_report_markdown,
 )
 
+pytestmark = [pytest.mark.slow, pytest.mark.spark_slow]
+
 SCORED_COLUMNS = ["step", "amount", "fraud_probability", "is_alert", "isFraud"]
 
 
