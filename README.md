@@ -1,5 +1,11 @@
 # transaction-risk-lakehouse
 
+[![tests](https://github.com/DiogoRibeiro7/transaction-risk-lakehouse/actions/workflows/tests.yml/badge.svg)](https://github.com/DiogoRibeiro7/transaction-risk-lakehouse/actions/workflows/tests.yml)
+[![lint](https://github.com/DiogoRibeiro7/transaction-risk-lakehouse/actions/workflows/lint.yml/badge.svg)](https://github.com/DiogoRibeiro7/transaction-risk-lakehouse/actions/workflows/lint.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![Python 3.10–3.12](https://img.shields.io/badge/python-3.10%E2%80%933.12-blue.svg)](pyproject.toml)
+[![PySpark 4](https://img.shields.io/badge/PySpark-4.x-e25a1c.svg)](pyproject.toml)
+
 A production-oriented PySpark project for transaction risk modelling and fraud detection.
 
 This repository demonstrates how to build a scalable transaction-risk pipeline using batch processing, behavioural feature engineering, temporal validation, graph-derived risk signals, Spark MLlib models, and a local streaming scoring demo.
