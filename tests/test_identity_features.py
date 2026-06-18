@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import pytest
-
 from pyspark.sql.types import StringType, StructField, StructType
 
 from transaction_risk.features.identity_features import add_identity_features
