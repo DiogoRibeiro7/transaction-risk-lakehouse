@@ -342,6 +342,12 @@ transaction-risk export-feature-registry --output reports/feature_registry.md
 
 Each successful training run appends a versioned entry to a local JSON Lines registry under `models/registry.jsonl`. An entry records the model path, model type, training feature table, selected threshold, evaluation metrics, and registration time. The registry functions are plain Python and do not require Spark.
 
+Registry and scoring-artifact metadata files use DataExcept for file access failures
+(`FileReadError` and `FileWriteError`) and malformed JSON (`DataLoadingError`).
+The file path and original cause remain available on the exception. A missing
+registry file still represents an empty registry; Spark model loading and saving
+retain their existing error behavior.
+
 `--model-output` now writes a bundled scoring artifact directory. By default it contains:
 
 ```text

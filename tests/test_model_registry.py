@@ -2,6 +2,9 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import pytest
+from dataexcept import DataLoadingError, FileReadError, FileWriteError
+
 from transaction_risk.models.registry import (
     ModelMetric,
     get_latest_model,
@@ -10,7 +13,9 @@ from transaction_risk.models.registry import (
 )
 
 
-def _register(registry_path: Path, model_type: str = "logistic_regression", notes: str | None = None):
+def _register(
+    registry_path: Path, model_type: str = "logistic_regression", notes: str | None = None
+):
     return register_model(
         model_path="models/fraud_risk_pipeline",
         registry_path=registry_path,
@@ -50,6 +55,55 @@ def test_load_registry_round_trips_entries(tmp_path: Path) -> None:
 
 def test_load_registry_returns_empty_for_missing_file(tmp_path: Path) -> None:
     assert load_registry(tmp_path / "missing.jsonl") == []
+
+
+def test_load_registry_wraps_unreadable_file(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    registry_path = tmp_path / "registry.jsonl"
+    registry_path.touch()
+    original = PermissionError("read denied")
+
+    def fail_read(_path: Path, *, encoding: str) -> str:
+        raise original
+
+    monkeypatch.setattr(Path, "read_text", fail_read)
+    with pytest.raises(FileReadError) as caught:
+        load_registry(registry_path)
+
+    assert caught.value.path == str(registry_path)
+    assert caught.value.original is original
+    assert caught.value.__cause__ is original
+
+
+def test_load_registry_wraps_malformed_json(tmp_path: Path) -> None:
+    registry_path = tmp_path / "registry.jsonl"
+    registry_path.write_text("{broken json}\n", encoding="utf-8")
+
+    with pytest.raises(DataLoadingError) as caught:
+        load_registry(registry_path)
+
+    assert caught.value.source == str(registry_path)
+    assert isinstance(caught.value.original, ValueError)
+    assert caught.value.__cause__ is caught.value.original
+
+
+def test_register_model_wraps_write_failure(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    registry_path = tmp_path / "registry.jsonl"
+    original = PermissionError("write denied")
+
+    def fail_open(_path: Path, mode: str, *, encoding: str) -> None:
+        raise original
+
+    monkeypatch.setattr(Path, "open", fail_open)
+    with pytest.raises(FileWriteError) as caught:
+        _register(registry_path)
+
+    assert caught.value.path == str(registry_path)
+    assert caught.value.original is original
+    assert caught.value.__cause__ is original
 
 
 def test_get_latest_model_selects_highest_version(tmp_path: Path) -> None:
