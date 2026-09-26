@@ -8,6 +8,8 @@ from dataclasses import asdict, dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
 
+from dataexcept import DataLoadingError, FileReadError, FileWriteError, wrapping
+
 logger = logging.getLogger(__name__)
 
 DEFAULT_REGISTRY_PATH = "models/registry.jsonl"
@@ -57,14 +59,20 @@ class ModelRegistryEntry:
 def load_registry(registry_path: str | Path) -> list[ModelRegistryEntry]:
     """Load all registry entries, oldest first."""
     path = Path(registry_path)
-    if not path.exists():
+    with wrapping(OSError, FileReadError, path=str(path)):
+        exists = path.exists()
+    if not exists:
         return []
 
-    entries = []
-    for line in path.read_text(encoding="utf-8").splitlines():
+    with wrapping((OSError, UnicodeError), FileReadError, path=str(path)):
+        lines = path.read_text(encoding="utf-8").splitlines()
+    entries: list[ModelRegistryEntry] = []
+    for line in lines:
         stripped = line.strip()
         if stripped:
-            entries.append(ModelRegistryEntry.from_dict(json.loads(stripped)))
+            with wrapping(json.JSONDecodeError, DataLoadingError, source=str(path)):
+                payload = json.loads(stripped)
+            entries.append(ModelRegistryEntry.from_dict(payload))
     return entries
 
 
@@ -93,9 +101,10 @@ def register_model(
     )
 
     path = Path(registry_path)
-    path.parent.mkdir(parents=True, exist_ok=True)
-    with path.open("a", encoding="utf-8") as registry_file:
-        registry_file.write(entry.to_json() + "\n")
+    with wrapping((OSError, UnicodeError), FileWriteError, path=str(path)):
+        path.parent.mkdir(parents=True, exist_ok=True)
+        with path.open("a", encoding="utf-8") as registry_file:
+            registry_file.write(entry.to_json() + "\n")
     logger.info("Registered model version %d at %s", entry.version, registry_path)
     return entry
 
